@@ -139,6 +139,12 @@ async function loadGame(id) {
     return false;
   }
   prefs.game = Machine.info.id; savePrefs();
+  if (machine.setNvram) {
+    try {
+      const saved = localStorage.getItem(`arcade-remaster-nvram-${Machine.info.id}`);
+      if (saved) machine.setNvram(Uint8Array.from(atob(saved), c => c.charCodeAt(0)));
+    } catch { /* storage unavailable */ }
+  }
   classic.setMachine(machine);
   if (prefs.mode !== 'classic') {
     const r = await ensureRemaster();
@@ -150,6 +156,16 @@ async function loadGame(id) {
   acc = 0;
   return true;
 }
+
+function saveNvram() {
+  if (!machine || !machine.getNvram) return;
+  try {
+    const d = machine.getNvram();
+    localStorage.setItem(`arcade-remaster-nvram-${machine.info.id}`, btoa(String.fromCharCode(...d)));
+  } catch { /* storage unavailable */ }
+}
+setInterval(saveNvram, 10000);
+addEventListener('pagehide', saveNvram);
 
 async function setMode(mode) {
   prefs.mode = mode; savePrefs();
@@ -270,6 +286,7 @@ function buildTabs() {
     b.dataset.id = M.info.id;
     b.addEventListener('click', async () => {
       if (machine && machine.info.id === M.info.id) return;
+      saveNvram();
       await audio.init();
       await loadGame(M.info.id);
     });

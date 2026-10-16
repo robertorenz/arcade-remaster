@@ -4,6 +4,7 @@ import { buildConstruction } from './themes/construction.js';
 import { buildJungle } from './themes/jungle.js';
 import { buildMoon } from './themes/moon.js';
 import { buildNeon } from './themes/neon.js';
+import { buildCavern } from './themes/cavern.js';
 
 function hudMaterial() {
   const m = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
@@ -148,7 +149,33 @@ function mspacmanProfile() {
   };
 }
 
-const PROFILES = { dkong: dkongProfile, junglek: junglekProfile, mpatrolw: mpatrolProfile, mspacman: mspacmanProfile };
+// Joust: the bitmap is split into scenery (rock ledges, lava) and blitter-drawn riders.
+function joustProfile() {
+  const materials = {
+    rock: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.05, envMapIntensity: 0.3 }),
+    lava: new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }),
+  };
+  materials.lava.userData.castShadow = false;
+  return {
+    materials,
+    backdrop: buildCavern,
+    margin: 0.55,
+    cameraTilt: 45,
+    inflate: { thickness: 0.8, minDepth: 4, maxDepth: 16 },
+    lighting: {
+      hemiSky: 0x7a8aa8, hemiGround: 0x5a2010, hemiIntensity: 0.55,
+      sunColor: 0xffe2c4, sunIntensity: 1.7, sunPos: [-160, 260, 280],
+      rimColor: 0xff6a20, rimIntensity: 1.4, exposure: 1.0, bloomStrength: 0.5, bloomThreshold: 0.88,
+    },
+    spriteZ: () => 3,
+    classifyTile(t, x, y, p, color) {
+      if (t.kind === 'lava') return [{ group: 'lava', z0: -6, z1: 6, color }];
+      return [{ group: 'rock', z0: -7, z1: 7, color }];
+    },
+  };
+}
+
+const PROFILES = { dkong: dkongProfile, junglek: junglekProfile, mpatrolw: mpatrolProfile, mspacman: mspacmanProfile, joust: joustProfile };
 
 export function getProfile(id, view) {
   const make = PROFILES[id];

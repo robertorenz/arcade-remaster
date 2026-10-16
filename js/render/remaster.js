@@ -58,7 +58,7 @@ class TileLayer {
 
   tileKey(t) {
     const v = this.view;
-    return `${t.key !== undefined ? t.key : t.code}:${v.palKey(palBase(t))}:${t.kind}:${t.w}x${t.h}`;
+    return `${t.key !== undefined ? t.key : t.code}:${v.palKey(palBase(t), 16)}:${t.kind}:${t.w}x${t.h}`;
   }
 
   geometryFor(t, key) {
@@ -67,7 +67,7 @@ class TileLayer {
     const v = this.view, prof = v.profile;
     const base = palBase(t);
     const cols = [];
-    for (let p = 0; p < 8; p++) cols.push(v.linear(base + p));
+    for (let p = 0; p < 16; p++) cols.push(v.linear(base + p));
     const ctx = prof.tileContext ? prof.tileContext(t) : null;
     const skipBlack = prof.skipBlackTiles;
     const data = voxelize(t.pixels, t.w, t.h, (x, y, p) =>

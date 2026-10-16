@@ -26,9 +26,32 @@ const CYCLES = new Uint8Array([
   /*F*/ 4, 4, 4, 6, 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5,
 ]);
 
+// MC6800/6802/6808 timings (no on-chip peripherals; 6801-only opcodes unused)
+const CYCLES_6800 = new Uint8Array([
+  /*0*/ 2, 2, 2, 2, 2, 2, 2, 2, 4, 4, 2, 2, 2, 2, 2, 2,
+  /*1*/ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+  /*2*/ 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+  /*3*/ 4, 4, 4, 4, 4, 4, 4, 4, 5, 5, 3, 10, 4, 10, 9, 12,
+  /*4*/ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+  /*5*/ 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+  /*6*/ 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 4, 7,
+  /*7*/ 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 3, 6,
+  /*8*/ 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 2, 3, 8, 3, 3,
+  /*9*/ 3, 3, 3, 5, 3, 3, 3, 4, 3, 3, 3, 3, 4, 5, 4, 5,
+  /*A*/ 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 6, 8, 6, 7,
+  /*B*/ 4, 4, 4, 6, 4, 4, 4, 5, 4, 4, 4, 4, 5, 9, 5, 6,
+  /*C*/ 2, 2, 2, 4, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3,
+  /*D*/ 3, 3, 3, 5, 3, 3, 3, 4, 3, 3, 3, 3, 4, 4, 4, 5,
+  /*E*/ 5, 5, 5, 6, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 6, 7,
+  /*F*/ 4, 4, 4, 6, 4, 4, 4, 5, 4, 4, 4, 4, 5, 5, 5, 6,
+]);
+
 export class M6803 {
-  constructor(bus) {
+  // opts.plain: behave as a 6800/6808 (no on-chip registers, RAM or timer; 6800 cycle counts)
+  constructor(bus, opts = {}) {
     this.bus = bus;
+    this.plain = !!opts.plain;
+    this.cycles = this.plain ? CYCLES_6800 : CYCLES;
     this.iram = new Uint8Array(128);
     this.reset();
   }
@@ -45,12 +68,14 @@ export class M6803 {
   // ---- memory with on-chip resources ------------------------------------------
   rd(a) {
     a &= 0xffff;
+    if (this.plain) return this.bus.read(a);
     if (a < 0x20) return this.readReg(a);
     if (a >= 0x80 && a < 0x100) return this.iram[a - 0x80];
     return this.bus.read(a);
   }
   wr(a, v) {
     a &= 0xffff; v &= 0xff;
+    if (this.plain) { this.bus.write(a, v); return; }
     if (a < 0x20) { this.writeReg(a, v); return; }
     if (a >= 0x80 && a < 0x100) { this.iram[a - 0x80] = v; return; }
     this.bus.write(a, v);
@@ -247,18 +272,18 @@ export class M6803 {
       cyc = this.interrupt(0xfffc);
     } else if (!(this.cc & I) && this.irqLine) {
       cyc = this.interrupt(0xfff8);
-    } else if (!(this.cc & I) && (this.tcsr & 0x40) && (this.tcsr & 0x08)) {
+    } else if (!this.plain && !(this.cc & I) && (this.tcsr & 0x40) && (this.tcsr & 0x08)) {
       cyc = this.interrupt(0xfff4);
-    } else if (!(this.cc & I) && (this.tcsr & 0x20) && (this.tcsr & 0x04)) {
+    } else if (!this.plain && !(this.cc & I) && (this.tcsr & 0x20) && (this.tcsr & 0x04)) {
       cyc = this.interrupt(0xfff2);
     } else if (this.waiting) {
       cyc = 4;
     } else {
       const op = this.fetch();
-      cyc = CYCLES[op];
+      cyc = this.cycles[op];
       this.exec(op);
     }
-    this.tickTimer(cyc);
+    if (!this.plain) this.tickTimer(cyc);
     return cyc;
   }
 
@@ -295,7 +320,7 @@ export class M6803 {
         case 0xc: {                 // CPX / LDD
           const m = mode === 0 ? this.fetch16() : this.rd16(this.ea(mode));
           if (accB) { this.d = m; this.nz16(m); this.cc &= ~V; }
-          else this.sub16(this.x, m);
+          else { const c = this.cc & C; this.sub16(this.x, m); if (this.plain) this.cc = (this.cc & ~C) | c; }
           return;
         }
         case 0xd: {                 // BSR / JSR / STD
