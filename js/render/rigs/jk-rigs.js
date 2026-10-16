@@ -2,8 +2,9 @@
 // man who hangs, runs, leaps and swims; the vine (a chain of thin sprites) becomes a leafy rope
 // that swings through the same points as the arcade's.
 import * as THREE from 'three';
-import { bboxOf, canvasTexture } from './rig-layer.js';
-import { blob, taper, eye, joint, damp, skinMat } from './sculpt.js';
+import { bboxOf, canvasTexture, dominantColor } from './rig-layer.js';
+import { blob, taper, eye, joint, damp, skinMat, furMat, glossMat, scaleNormal, rock, rockMat } from './sculpt.js';
+import { makePauline } from './dk-chars.js';
 
 let leopardTex = null;
 function leopard() {
@@ -181,68 +182,398 @@ function makeVine() {
   };
 }
 
-const opaqueCount = s => { let n = 0; for (const p of s.pixels) if (p) n++; return n; };
+// ---- creatures and props ---------------------------------------------------------------------
+function makeCroc() {
+  const g = new THREE.Group();
+  const flip = new THREE.Group();
+  g.add(flip);
+  const hide = new THREE.MeshPhysicalMaterial({ color: 0x3e6a24, roughness: 0.45, clearcoat: 0.5, clearcoatRoughness: 0.3, normalMap: scaleNormal(), normalScale: new THREE.Vector2(0.8, 0.8) });
+  const belly = new THREE.MeshPhysicalMaterial({ color: 0xb8b070, roughness: 0.5, clearcoat: 0.3 });
+  const tooth = glossMat(0xfff8e0);
+  const mouth = new THREE.MeshStandardMaterial({ color: 0x8a2a28, roughness: 0.6 });
+  flip.add(blob(8.5, 2.9, 4.0, hide, v => 1 + 0.1 * v.x - 0.15 * Math.max(0, -v.y)));
+  const under = blob(7.8, 1.6, 3.4, belly); under.position.y = -1.4; flip.add(under);
+  // ridge of scutes along the back
+  for (let i = 0; i < 9; i++) {
+    for (const z of [-1, 1]) {
+      const sc = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.4, 6), hide);
+      sc.position.set(-7 + i * 1.7, 2.7 - Math.abs(i - 4) * 0.12, z * 1.1);
+      flip.add(sc);
+    }
+  }
+  // tail in three jointed sections
+  const tail = [];
+  let parent = flip, x0 = -7.5;
+  for (let i = 0; i < 3; i++) {
+    const j = joint(x0, 0.2, 0);
+    const r0 = 2.6 - i * 0.8, r1 = 1.9 - i * 0.75;
+    j.add(taper([[0, 0, 0], [-5.5, 0, 0]], [r0, Math.max(0.25, r1)], hide));
+    parent.add(j);
+    tail.push(j);
+    parent = j; x0 = -5.5;
+  }
+  // head: upper and lower jaw with teeth
+  const head = joint(7.5, 0.6, 0);
+  const upper = blob(5.8, 1.4, 2.5, hide, v => 1 - 0.35 * Math.max(0, v.x) ** 2); upper.position.set(4.6, 0.6, 0);
+  const jaw = joint(0.5, -0.2, 0);
+  const lower = blob(5.4, 1.0, 2.2, hide, v => 1 - 0.35 * Math.max(0, v.x) ** 2); lower.position.set(4.6, -0.7, 0);
+  const tongue = blob(3.5, 0.4, 1.4, mouth); tongue.position.set(3.8, -0.1, 0);
+  jaw.add(lower, tongue);
+  for (let i = 0; i < 7; i++) for (const z of [-1, 1]) {
+    const t1 = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.9, 5), tooth);
+    t1.position.set(1.5 + i * 1.15, -0.5, z * (1.9 - i * 0.18)); t1.rotation.x = Math.PI;
+    head.add(t1);
+    const t2 = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.8, 5), tooth);
+    t2.position.set(1.8 + i * 1.1, -0.1, z * (1.7 - i * 0.17));
+    jaw.add(t2);
+  }
+  for (const z of [-1, 1]) {
+    const bump = blob(1.0, 0.9, 0.9, hide); bump.position.set(1.5, 2.0, z * 1.4); head.add(bump);
+    const e = eye(0.55, 0xd0a020, { scaleY: 0.8 }); e.position.set(1.8, 2.3, z * 1.5); e.rotation.y = z * 0.9; head.add(e);
+  }
+  head.add(upper, jaw);
+  flip.add(head);
+  // stubby splayed legs
+  const legs = [];
+  for (const [x, z] of [[4.5, 1], [4.5, -1], [-4.5, 1], [-4.5, -1]]) {
+    const l = joint(x, -1.2, z * 3.2);
+    l.add(taper([[0, 0, 0], [0.5, -1.5, z * 1.2], [1.2, -2.4, z * 1.4]], [1.0, 0.8, 0.6], hide));
+    flip.add(l);
+    legs.push(l);
+  }
+  let face = 1;
+  return {
+    group: g,
+    update(obj, { t, st }) {
+      if (Math.abs(st.vx) > 0.05) face = st.vx > 0 ? 1 : -1;
+      else if (obj.facing) face = obj.facing;
+      flip.scale.x = face;
+      flip.rotation.y = -face * 0.25;
+      tail.forEach((j, i) => { j.rotation.y = Math.sin(t * 4 - i * 0.9) * 0.28; });
+      const open = Math.max(0, Math.sin(t * 2.2)) ** 2;
+      jaw.rotation.z = -0.55 * open;
+      head.rotation.z = 0.12 * open;
+      legs.forEach((l, i) => { l.rotation.z = Math.sin(t * 5 + i * 1.6) * 0.35; });
+      flip.position.y = Math.sin(t * 2) * 0.4;
+    },
+  };
+}
+
+function makeBoulder() {
+  const g = new THREE.Group();
+  const r = rock(7.5, rockMat(0x8a7a6a), 3.1);
+  g.add(r);
+  return {
+    group: g,
+    update(obj, { st }) {
+      const s = Math.max(0.4, Math.max(obj.x1 - obj.x0, obj.y1 - obj.y0) / 16);
+      r.scale.setScalar(s);
+      r.rotation.z -= st.vx * 0.13 / s;
+      r.material.color.setRGB(obj.tint[0] / 255 * 0.55 + 0.25, obj.tint[1] / 255 * 0.45 + 0.22, obj.tint[2] / 255 * 0.4 + 0.2, THREE.SRGBColorSpace);
+    },
+  };
+}
+
+function makeNative() {
+  const g = new THREE.Group();
+  const turn = new THREE.Group();
+  g.add(turn);
+  const skin = skinMat(0x5a3420);
+  const bone = glossMat(0xf0ead8, { roughness: 0.4, clearcoat: 0.3 });
+  const grass = new THREE.MeshStandardMaterial({ color: 0x9a8a3a, roughness: 0.8, side: THREE.DoubleSide });
+  const black = new THREE.MeshStandardMaterial({ color: 0x080808 });
+  turn.add(blob(2.8, 4.0, 2.0, skin, v => 1 + 0.15 * v.y));
+  // grass skirt: a fringe of blades
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2;
+    const blade = new THREE.Mesh(new THREE.ConeGeometry(0.45, 4.2, 4), grass);
+    blade.position.set(Math.cos(a) * 2.5, -4.6, Math.sin(a) * 2.1);
+    blade.rotation.set(Math.sin(a) * 0.25, 0, -Math.cos(a) * 0.25 + Math.PI);
+    turn.add(blade);
+  }
+  // skull mask with dark sockets, and a feather crest
+  const head = joint(0, 6.5, 0);
+  head.add(blob(2.2, 2.5, 2.1, skin));
+  const mask = blob(2.0, 2.4, 1.0, bone); mask.position.set(0, 0.2, 1.6); head.add(mask);
+  for (const x of [-1, 1]) { const s = blob(0.55, 0.65, 0.3, black); s.position.set(x * 0.8, 0.6, 2.45); head.add(s); }
+  for (let i = 0; i < 4; i++) { const tth = blob(0.22, 0.35, 0.2, black); tth.position.set(-0.6 + i * 0.4, -1.1, 2.4); head.add(tth); }
+  for (let i = 0; i < 5; i++) {
+    const f = taper([[0, 0, 0], [(i - 2) * 0.5, 3.2, -0.3]], [0.35, 0.08], glossMat([0xe03020, 0xf0c020, 0x2060d0][i % 3]));
+    f.position.set((i - 2) * 0.55, 2.0, -0.4);
+    head.add(f);
+  }
+  turn.add(head);
+  const arms = [-1, 1].map(s => {
+    const sh = joint(s * 3.0, 2.8, 0);
+    sh.add(taper([[0, 0, 0], [0, -3.8, 0.4], [0, -7, 0.6]], [0.9, 0.75, 0.6], skin));
+    turn.add(sh);
+    return sh;
+  });
+  const spear = new THREE.Group();
+  spear.add(taper([[0, -9, 0], [0, 9, 0]], [0.3, 0.3], new THREE.MeshStandardMaterial({ color: 0x6a4420, roughness: 0.7 })));
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.8, 2.6, 6), rockMat(0x6a6a72)); tip.position.y = 10.2; spear.add(tip);
+  spear.position.set(0, -7, 0.6);
+  arms[1].add(spear);
+  const legs = [-1, 1].map(s => {
+    const hip = joint(s * 1.3, -4.0, 0);
+    hip.add(taper([[0, 0, 0], [0, -3.5, 0.3], [0, -7, 0]], [1.1, 0.85, 0.6], skin));
+    const foot = blob(0.7, 0.45, 1.3, skin); foot.position.set(0, -7.4, 0.6); hip.add(foot);
+    turn.add(hip);
+    return hip;
+  });
+  let face = 1, ph = 0;
+  return {
+    group: g,
+    update(obj, { t, dt, st }) {
+      if (Math.abs(st.vx) > 0.05) face = st.vx > 0 ? 1 : -1;
+      turn.rotation.y = damp(turn.rotation.y, face * 0.9, 8, dt);
+      ph += Math.max(Math.abs(st.vx), 0.03) * 0.8;
+      legs[0].rotation.x = Math.sin(ph) * 0.6; legs[1].rotation.x = -Math.sin(ph) * 0.6;
+      arms[0].rotation.x = -Math.sin(ph) * 0.5;
+      // spear arm held forward, the spear itself kept upright
+      arms[1].rotation.x = -0.55 + Math.sin(t * 3) * 0.1;
+      spear.rotation.x = 0.55 - Math.sin(t * 3) * 0.1;
+      head.rotation.z = Math.sin(t * 2.5) * 0.08;
+    },
+  };
+}
+
+function makeMonkey() {
+  const g = new THREE.Group();
+  const turn = new THREE.Group();
+  g.add(turn);
+  const fur = furMat(0x6a3a18, 0xa86a38);
+  const skin = skinMat(0xd8a070);
+  turn.add(blob(3.0, 3.6, 2.6, fur));
+  const belly = blob(2.0, 2.6, 1.2, skin); belly.position.set(0, -0.5, 1.7); turn.add(belly);
+  const head = joint(0, 4.6, 0.3);
+  head.add(blob(2.4, 2.3, 2.2, fur));
+  const mask = blob(1.7, 1.6, 1.0, skin); mask.position.set(0, -0.3, 1.6); head.add(mask);
+  for (const s of [-1, 1]) {
+    const e = eye(0.42, 0x3a1a08); e.position.set(s * 0.6, 0.2, 2.2); head.add(e);
+    const ear = blob(0.9, 0.9, 0.4, skin); ear.position.set(s * 2.4, 0.4, 0); head.add(ear);
+  }
+  const muzzle = blob(0.9, 0.6, 0.6, skin); muzzle.position.set(0, -0.9, 2.3); head.add(muzzle);
+  turn.add(head);
+  const limbs = [];
+  for (const [x, y, len] of [[-2.4, 2.0, 6], [2.4, 2.0, 6], [-1.4, -3.0, 4.5], [1.4, -3.0, 4.5]]) {
+    const j = joint(x, y, 0);
+    j.add(taper([[0, 0, 0], [0, -len / 2, 0.3], [0, -len, 0]], [0.75, 0.65, 0.5], fur));
+    const paw = blob(0.6, 0.6, 0.6, skin); paw.position.y = -len - 0.3; j.add(paw);
+    turn.add(j);
+    limbs.push(j);
+  }
+  const tail = taper([[0, -3, -2], [0, -5, -4], [0, -3, -6.5], [0, -0.5, -6]], [0.6, 0.5, 0.4, 0.3], fur);
+  turn.add(tail);
+  let face = 1;
+  return {
+    group: g,
+    update(obj, { t, dt, st }) {
+      if (Math.abs(st.vx) > 0.05) face = st.vx > 0 ? 1 : -1;
+      turn.rotation.y = damp(turn.rotation.y, face * 0.8, 8, dt);
+      const a = t * 9;
+      limbs.forEach((l, i) => { l.rotation.x = Math.sin(a + i * 1.7) * 0.7; l.rotation.z = (i % 2 ? 1 : -1) * 0.3; });
+      head.rotation.z = Math.sin(t * 4) * 0.15;
+      tail.rotation.x = Math.sin(t * 3) * 0.2;
+    },
+  };
+}
+
+function makeSpear() {
+  const g = new THREE.Group();
+  const aim = new THREE.Group();
+  g.add(aim);
+  aim.add(taper([[-8, 0, 0], [6, 0, 0]], [0.32, 0.3], new THREE.MeshStandardMaterial({ color: 0x7a5228, roughness: 0.7 })));
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.85, 2.8, 6), rockMat(0x707078)); tip.rotation.z = -Math.PI / 2; tip.position.x = 7.2; aim.add(tip);
+  for (const s of [-1, 1]) { const f = blob(1.4, 0.15, 0.6, glossMat(0xd04020)); f.position.set(-7.2, s * 0.4, 0); f.rotation.z = s * 0.4; aim.add(f); }
+  let ang = 0;
+  return {
+    group: g,
+    update(obj, { dt, st }) {
+      if (Math.abs(st.vx) + Math.abs(st.vy) > 0.2) ang = Math.atan2(-st.vy, st.vx);
+      aim.rotation.z = damp(aim.rotation.z, ang, 20, dt);
+      aim.scale.setScalar(Math.max(obj.x1 - obj.x0, obj.y1 - obj.y0) / 16);
+    },
+  };
+}
+
+function makeBubble() {
+  const g = new THREE.Group();
+  const m = new THREE.MeshPhysicalMaterial({ color: 0xcfefff, roughness: 0.02, metalness: 0, clearcoat: 1, transparent: true, opacity: 0.35, iridescence: 1, iridescenceIOR: 1.3, envMapIntensity: 1.5, depthWrite: false });
+  const b = new THREE.Mesh(new THREE.SphereGeometry(2.4, 20, 14), m);
+  b.userData.noShadow = true;
+  g.add(b);
+  return { group: g, update(obj, { t }) { const s = Math.max(obj.x1 - obj.x0, obj.y1 - obj.y0) / 8; b.scale.set(s * (1 + 0.06 * Math.sin(t * 9)), s * (1 - 0.06 * Math.sin(t * 9)), s); } };
+}
+
+function makeHeart() {
+  const g = new THREE.Group();
+  const m = glossMat(0xff3a7a, { emissive: 0x501020 });
+  const shape = new THREE.Shape();
+  shape.moveTo(0, -6);
+  shape.bezierCurveTo(-2, -4, -7, -1, -7, 2.5);
+  shape.bezierCurveTo(-7, 6, -2.5, 7, 0, 4);
+  shape.bezierCurveTo(2.5, 7, 7, 6, 7, 2.5);
+  shape.bezierCurveTo(7, -1, 2, -4, 0, -6);
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: 2.5, bevelEnabled: true, bevelThickness: 1.5, bevelSize: 1.2, bevelSegments: 6, curveSegments: 24 });
+  geo.center();
+  const h = new THREE.Mesh(geo, m);
+  g.add(h);
+  return { group: g, update(obj, { t }) { h.scale.setScalar(1 + 0.12 * Math.max(0, Math.sin(t * 6))); h.rotation.y = Math.sin(t * 1.5) * 0.4; } };
+}
+
+function makeFire() {
+  const g = new THREE.Group();
+  const parts = [];
+  for (let i = 0; i < 14; i++) {
+    const f = new THREE.Mesh(new THREE.ConeGeometry(1.5 + (i % 3) * 0.6, 7 + (i % 4) * 1.6, 8),
+      new THREE.MeshBasicMaterial({ color: [0xffe27a, 0xffa22a, 0xff5a10][i % 3], toneMapped: false, transparent: true, opacity: 0.8, depthWrite: false }));
+    f.userData.noShadow = true;
+    f.userData.seed = i * 1.7;
+    g.add(f);
+    parts.push(f);
+  }
+  const logs = new THREE.MeshStandardMaterial({ color: 0x3a2010, roughness: 0.9 });
+  for (const a of [0.5, -0.5, 1.6]) { const l = taper([[-5, -6, 0], [5, -6, 0]], [0.8, 0.7], logs); l.rotation.y = a; g.add(l); }
+  return {
+    group: g, light: true,
+    update(obj, { t }) {
+      const w = Math.max(8, obj.x1 - obj.x0) / 2;
+      for (const f of parts) {
+        const s = f.userData.seed;
+        const life = (t * 1.6 + s) % 1;
+        f.position.set(Math.sin(s * 3) * w * 0.7, -4 + life * 7, Math.cos(s * 2) * 2.5);
+        f.scale.setScalar(1.15 - life * 0.75);
+        f.material.opacity = 0.9 - life * 0.6;
+      }
+    },
+  };
+}
+
+// ---- classification --------------------------------------------------------------------------
+// graphics ROM sprite index -> object type (indices from the sprite sheet decoded from kn29..kn56)
+const RANGES = [
+  ['vine', 33, 44], ['hero', 45, 60], ['hero', 72, 75], ['hero', 92, 107], ['hero', 152, 177], ['hero', 208, 219],
+  ['hero', 245, 250], ['fire', 232, 239], ['croc', 67, 71], ['croc', 108, 119],
+  ['bubble', 120, 124], ['boulder', 128, 131], ['boulder', 178, 183], ['monkey', 132, 135],
+  ['native', 192, 203], ['native', 224, 225], ['native', 227, 228], ['native', 230, 230],
+  ['spear', 226, 226], ['spear', 229, 229], ['spear', 251, 255], ['jane', 220, 223], ['heart', 240, 241],
+];
+const TYPE = new Map();
+for (const [t, a, b] of RANGES) for (let i = a; i <= b; i++) TYPE.set(i, t);
+const SWIM = new Set([96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107]);
+
+// sprites of one type that touch each other form one object (a crocodile is several sprites)
+function clusters(list, gap = 3) {
+  const out = [];
+  const bbs = list.map(s => bboxOf([s]));
+  const used = new Array(list.length).fill(false);
+  for (let i = 0; i < list.length; i++) {
+    if (used[i]) continue;
+    const c = [i]; used[i] = true;
+    for (let k = 0; k < c.length; k++) {
+      const a = bbs[c[k]];
+      for (let j = 0; j < list.length; j++) {
+        if (used[j]) continue;
+        const b = bbs[j];
+        if (b.x0 <= a.x1 + gap && b.x1 >= a.x0 - gap && b.y0 <= a.y1 + gap && b.y1 >= a.y0 - gap) { used[j] = true; c.push(j); }
+      }
+    }
+    out.push(c.map(n => list[n]));
+  }
+  return out;
+}
+
+const segEnds = s => {
+  let top = null, bot = null;
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    if (!s.pixels[y * 16 + x]) continue;
+    if (!top) top = [s.x + x + 0.5, s.y + y + 0.5];
+    bot = [s.x + x + 0.5, s.y + y + 0.5];
+  }
+  return [top, bot];
+};
 
 export function jkRigSet(view) {
+  let tracks = [], nextId = 1;
+  const catalog = view.machine.romSpriteCatalog ? view.machine.romSpriteCatalog() : new Map();
   return {
     scale: 1.05,
     classify(sprites) {
       const objects = [], rest = [];
-      const bySlot = new Map(sprites.map(s => [s.slot, s]));
-      const a = bySlot.get(0), b = bySlot.get(1);
-      const hero = a && b && Math.abs(a.x - b.x) + Math.abs(a.y - b.y) <= 20 ? [a, b] : null;
-      // vines: chains of thin sprites in consecutive slots that touch one another
-      const thin = sprites.filter(s => s.slot >= 2 && opaqueCount(s) <= 70).map(s => ({ s, bb: bboxOf([s]) }))
-        .filter(o => o.bb.y1 - o.bb.y0 >= 6).sort((p, q) => p.s.slot - q.s.slot);
-      const chains = [];
-      for (const o of thin) {
-        const c = chains[chains.length - 1];
-        const last = c && c[c.length - 1];
-        const touching = last && o.s.slot === last.s.slot + 1 &&
-          o.bb.x0 <= last.bb.x1 + 6 && o.bb.x1 >= last.bb.x0 - 6 && o.bb.y0 <= last.bb.y1 + 6 && o.bb.y1 >= last.bb.y0 - 6;
-        if (touching) c.push(o); else chains.push([o]);
+      const groups = new Map(), idxOf = new Map();
+      for (const s of sprites) {
+        const n = catalog.get(s.hash);
+        const t = n !== undefined ? TYPE.get(n) : undefined;
+        if (!t) { rest.push(s); continue; }
+        idxOf.set(s, n);
+        if (!groups.has(t)) groups.set(t, []);
+        groups.get(t).push(s);
       }
-      const vines = chains.filter(c => c.length >= 2).map(c => c.map(o => o.s));
-      const ends = s => {
-        let top = null, bot = null;
-        for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-          if (!s.pixels[y * 16 + x]) continue;
-          if (!top) top = [s.x + x + 0.5, s.y + y + 0.5];
-          bot = [s.x + x + 0.5, s.y + y + 0.5];
-        }
-        return [top, bot];
-      };
+      const zOf = list => view.profile.spriteZ('other', list[0].order);
+      // vines: chains of touching segments
       const vinePts = [];
-      vines.forEach((vine, vi) => {
+      clusters(groups.get('vine') || [], 4).forEach((vine, vi) => {
         const bb = bboxOf(vine);
         const cx = (bb.x0 + bb.x1 + 1) / 2, cy = (bb.y0 + bb.y1 + 1) / 2;
-        const segs = vine.map(ends).filter(e => e[0]).sort((p, q) => p[0][1] - q[0][1]);
+        const segs = vine.map(segEnds).filter(e => e[0]).sort((p, q) => p[0][1] - q[0][1]);
         const pts = segs.map(e => e[0]);
         if (segs.length) pts.push(segs[segs.length - 1][1]);
+        if (pts.length < 2) { rest.push(...vine); return; }
         vinePts.push(pts);
-        objects.push({ type: 'vine', id: `vine${vi}`, ...bb, points: pts.map(([x, y]) => [x - cx, cy - y]), z: view.profile.spriteZ('other', vine[0].order) - 0.5 });
+        objects.push({ type: 'vine', id: `vine${vi}`, ...bb, points: pts.map(([x, y]) => [x - cx, cy - y]), z: zOf(vine) - 0.5 });
       });
-      if (hero) {
+      // the hero: the largest cluster of hero frames
+      const heroes = clusters(groups.get('hero') || [], 4).sort((a, b) => b.length - a.length);
+      if (heroes.length) {
+        const hero = heroes[0];
         const bb = bboxOf(hero);
-        const w = bb.x1 - bb.x0, h = bb.y1 - bb.y0;
         let mode = 'idle', angle = 0;
         const top = [(bb.x0 + bb.x1) / 2, bb.y0];
         for (const pts of vinePts) {
-          // hanging when the hands are at the end of a vine
           const end = pts[pts.length - 1], prev = pts[Math.max(0, pts.length - 3)];
-          if (Math.hypot(end[0] - top[0], end[1] - top[1]) < 16) {
-            mode = 'hang';
-            angle = -Math.atan2(end[0] - prev[0], end[1] - prev[1]);
-          }
+          if (Math.hypot(end[0] - top[0], end[1] - top[1]) < 16) { mode = 'hang'; angle = -Math.atan2(end[0] - prev[0], end[1] - prev[1]); }
         }
-        if (mode === 'idle' && w > h + 4) mode = 'swim';
-        objects.push({ type: 'hero', id: 'hero', ...bb, mode, angle, flipx: hero[0].flipx, z: view.profile.spriteZ('other', hero[0].order), player: true });
+        if (mode === 'idle' && hero.some(s => SWIM.has(idxOf.get(s)))) mode = 'swim';
+        objects.push({ type: 'hero', id: 'hero', ...bb, mode, angle, flipx: hero[0].flipx, z: zOf(hero), player: true });
+        for (const c of heroes.slice(1)) rest.push(...c);
       }
-      const used = new Set([...(hero || []), ...vines.flat()]);
-      for (const s of sprites) if (!used.has(s)) rest.push(s);
+      // everything else: one object per touching cluster, identities kept by nearest match
+      const next = [];
+      for (const type of ['croc', 'boulder', 'native', 'monkey', 'spear', 'bubble', 'jane', 'heart', 'fire']) {
+        for (const c of clusters(groups.get(type) || [], type === 'bubble' ? 0 : 3)) {
+          const bb = bboxOf(c);
+          const cx = (bb.x0 + bb.x1) / 2, cy = (bb.y0 + bb.y1) / 2;
+          let best = null, bd = 24;
+          for (const tr of tracks) {
+            if (tr.type !== type || tr.used) continue;
+            const d = Math.hypot(tr.cx - cx, tr.cy - cy);
+            if (d < bd) { bd = d; best = tr; }
+          }
+          const id = best ? best.id : nextId++;
+          if (best) best.used = true;
+          next.push({ id, type, cx, cy });
+          objects.push({ type, id: `${type}${id}`, ...bb, facing: c[0].flipx ? -1 : 1, tint: dominantColor(view, c), z: zOf(c) });
+        }
+      }
+      tracks = next;
       return { objects, rest };
     },
-    create(type) { return type === 'hero' ? makeHero() : makeVine(); },
+    create(type) {
+      switch (type) {
+        case 'hero': return makeHero();
+        case 'vine': return makeVine();
+        case 'croc': return makeCroc();
+        case 'boulder': return makeBoulder();
+        case 'native': return makeNative();
+        case 'monkey': return makeMonkey();
+        case 'spear': return makeSpear();
+        case 'bubble': return makeBubble();
+        case 'heart': return makeHeart();
+        case 'fire': return makeFire();
+        default: return makePauline({ dress: 0x2a8a5a, hair: 0xd8b040 });
+      }
+    },
   };
 }
 

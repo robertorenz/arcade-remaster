@@ -619,11 +619,33 @@ export class JungleKing {
         sprites.push({
           x: 255 - (sx + 15), y: 239 - (sy + 15), w: 16, h: 16, code, pal: color * 8,
           pixels: this.orient(g, 16, !fx, !fy, `s${bank}:${code}:${!fx}${!fy}`, h),
-          kind: 'other', order: orderPos[0], slot: which, flipx: !fx,
+          kind: 'other', order: orderPos[0], slot: which, flipx: !fx, hash: h,
         });
       }
     }
     return { tiles, sprites, bgColor: this.palette[sh.bgPen], order: sh.order };
+  }
+
+  // Content hash -> index of every 16x16 sprite image in the graphics ROMs. The game copies these
+  // images into character RAM at whatever slot it likes, so the hash identifies an object
+  // regardless of the code it is drawn with.
+  romSpriteCatalog() {
+    if (this.catalog) return this.catalog;
+    const rom = this.gfxRom, map = new Map(), g = new Uint8Array(256);
+    for (let n = 0; n < 320; n++) {
+      const base = Math.floor(n / 64) * 0x1800 + (n % 64) * 32;
+      for (let y = 0; y < 16; y++) {
+        const ro = base + (y < 8 ? y : 16 + y - 8);
+        for (let half = 0; half < 2; half++) {
+          const o = ro + half * 8;
+          const p0 = rom[o + 0x1000], p1 = rom[o + 0x800], p2 = rom[o];
+          for (let x = 0; x < 8; x++) g[y * 16 + half * 8 + x] = (((p0 >> x) & 1) << 2) | (((p1 >> x) & 1) << 1) | ((p2 >> x) & 1);
+        }
+      }
+      const h = fnv8(g);
+      if (!map.has(h)) map.set(h, n);
+    }
+    return (this.catalog = map);
   }
 
   isEmpty(bank, code) {

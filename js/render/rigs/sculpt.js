@@ -201,3 +201,21 @@ export function joint(x = 0, y = 0, z = 0) {
 }
 
 export const damp = (cur, target, rate, dt) => cur + (target - cur) * (1 - Math.exp(-rate * dt));
+
+// a craggy faceted rock: an icosphere pushed in and out by layered noise
+export function rock(radius, material, seed = 1, detail = 2) {
+  const g = new THREE.IcosahedronGeometry(radius, detail);
+  const p = g.attributes.position, v = new THREE.Vector3();
+  const n3 = (x, y, z) => Math.sin(x * 1.7 + seed) * Math.sin(y * 2.3 - seed * 0.7) * Math.sin(z * 1.9 + seed * 1.3);
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i).normalize();
+    const k = 1 + 0.18 * n3(v.x * 2, v.y * 2, v.z * 2) + 0.08 * n3(v.x * 5, v.y * 5, v.z * 5);
+    p.setXYZ(i, v.x * radius * k, v.y * radius * k * 0.92, v.z * radius * k);
+  }
+  g.computeVertexNormals();
+  return new THREE.Mesh(g, material);
+}
+
+export function rockMat(color) {
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.9, metalness: 0.03, flatShading: true, envMapIntensity: 0.4 });
+}

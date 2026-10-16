@@ -651,6 +651,7 @@ export class RemasterView {
     cam.updateMatrixWorld();
     if (this.profile.clip) this.updateClipPlanes(W, H);
     this.backdrop.update(this.time, scene);
+    this.profile.animate?.(this.time);
     if (this.settings.bloom) this.composer.render(dt);
     else {
       this.renderer.setRenderTarget(null);

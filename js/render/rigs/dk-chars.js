@@ -240,12 +240,12 @@ export function makeKong() {
 }
 
 // ---- Pauline ------------------------------------------------------------------------------------
-export function makePauline() {
+export function makePauline(opts = {}) {
   const g = new THREE.Group();
-  const dress = clothMat(0xc8306e, { sheen: 0.5, sheenColor: new THREE.Color(0xff80b0) });
+  const dress = clothMat(opts.dress ?? 0xc8306e, { sheen: 0.5, sheenColor: new THREE.Color(opts.dress ?? 0xff80b0) });
   const trim = clothMat(0xd8c8d0, { sheen: 0 });
   const skin = skinMat(0xdc9f7c);
-  const hairMat = new THREE.MeshPhysicalMaterial({ color: 0x7a240a, roughness: 0.42, sheen: 0.8, sheenColor: new THREE.Color(0xc8602a), clearcoat: 0.3 });
+  const hairMat = new THREE.MeshPhysicalMaterial({ color: opts.hair ?? 0x7a240a, roughness: 0.42, sheen: 0.8, sheenColor: new THREE.Color(0xc8602a), clearcoat: 0.3 });
 
   // flared skirt with a wavy hem
   const prof = [];

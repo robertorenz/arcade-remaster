@@ -68,10 +68,60 @@ function dkongProfile(view) {
 
 // Taito SJ (Jungle King): three playfields + sprites whose stacking order is chosen by the
 // game every frame. Each plane sits at its own depth; the topmost is nearest the viewer.
-function junglekProfile() {
+function junglekProfile(view) {
   const LAYER_GAP = 14;
   const materials = {
     foliage: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.0, envMapIntensity: 0.35 }),
+  };
+  const redrawn = view.style === 'redrawn';
+  let water = null;
+  if (redrawn) {
+    materials.leaf = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.6, clearcoat: 0.2, sheen: 0.3, sheenColor: new THREE.Color(0x3a6020), envMapIntensity: 0.3 });
+    materials.bark = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.92, flatShading: true, envMapIntensity: 0.25 });
+    materials.ground = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true, envMapIntensity: 0.25 });
+    // water: glossy, slightly see-through, and rippling (vertex waves driven by a time uniform)
+    water = new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.08, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.05, transparent: true, opacity: 0.9, envMapIntensity: 0.5 });
+    water.userData.castShadow = false;
+    water.onBeforeCompile = sh => {
+      sh.uniforms.uTime = { value: 0 };
+      water.userData.shader = sh;
+      sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        #ifdef USE_INSTANCING
+          vec4 wp = instanceMatrix * vec4(transformed, 1.0);
+        #else
+          vec4 wp = vec4(transformed, 1.0);
+        #endif
+        transformed.z += sin(wp.x * 0.16 + uTime * 2.0) * 1.1 + sin(wp.y * 0.21 - uTime * 1.4) * 0.8;`);
+    };
+    materials.water = water;
+  }
+  // deterministic per-pixel jitter (tile geometry is cached by content, so hash local coords)
+  const jit = (t, x, y, k = 0) => {
+    let h = Math.imul((t.code | 0) + 0x9e37 * k, 2654435761) ^ Math.imul(x + 1, 40503) ^ Math.imul(y + 7, 9973);
+    h = Math.imul(h ^ (h >>> 15), 2246822519);
+    return ((h ^ (h >>> 13)) & 0xffff) / 65535;
+  };
+  const redrawnTile = (t, x, y, p, c) => {
+    const [r, g, b] = c;
+    const sum = r + g + b;
+    if (sum > 2.2) return [{ group: 'foliage', z0: -2, z1: 2, color: c }];   // text and highlights
+    if (b > r * 1.15 && b > g * 1.05 && sum > 0.25) {
+      const k = 0.72 + 0.16 * jit(t, x, y);
+      return [{ group: 'water', z0: -1, z1: 1, color: [r * k, g * k, b * k] }];
+    }
+    if (g > r * 1.1 && g > b) {
+      // foliage: every pixel a leaf of its own depth, so canopies read as bushy clumps
+      const d = 2 + jit(t, x, y) * 6;
+      const k = 0.75 + 0.45 * jit(t, x, y, 1);
+      return [{ group: 'leaf', z0: -d, z1: d * 0.7, color: [r * k, g * k, b * k] }];
+    }
+    if (r > g && g > b * 1.2 && sum < 1.6) {
+      // bark: vertical grain stripes and deep relief
+      const k = 0.7 + 0.35 * (0.5 + 0.5 * Math.sin(x * 1.9 + jit(t, x, 0) * 6)) * (0.8 + 0.2 * jit(t, x, y));
+      return [{ group: 'bark', z0: -5 - jit(t, x, y, 2) * 1.5, z1: 5, color: [r * k, g * k, b * k] }];
+    }
+    const k = 0.7 + 0.24 * jit(t, x, y, 3);
+    return [{ group: 'ground', z0: -4, z1: 3 + jit(t, x, y, 4) * 1.2, color: [r * k, g * k, b * k] }];
   };
   const zOf = pos => (pos - 3) * LAYER_GAP;
   return {
@@ -90,8 +140,10 @@ function junglekProfile() {
     layerZ: (id, scene) => zOf(scene.order ? scene.order.indexOf(id) : 3),
     spriteZ: (kind, order) => zOf(order ?? 3) + 1,
     classifyTile(t, x, y, p, color) {
+      if (redrawn) return redrawnTile(t, x, y, p, color);
       return [{ group: 'foliage', z0: -2, z1: 2, color }];
     },
+    animate(time) { if (water?.userData.shader) water.userData.shader.uniforms.uTime.value = time; },
   };
 }
 

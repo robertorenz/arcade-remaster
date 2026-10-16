@@ -3,7 +3,7 @@
 // skyline (so its crest projects exactly onto the arcade silhouette) and then scrolled in step
 // with the hardware scroll registers.
 import * as THREE from 'three';
-import { noise3, disposeTree } from './common.js';
+import { noise3, disposeTree, rasterize, cutTiles } from './common.js';
 
 const BG_BASE = 512, VIS_X0 = 136, VIS_Y0 = 22;
 const STYLE = {
@@ -49,7 +49,8 @@ function rangeGeometry(view, image, style) {
       const f = Math.abs(z) / D;   // 0 at the crest plane, 1 at front/back edge
       const h = base - crest[x];
       const n = noise3(x * 0.18, z * 0.25, image * 7.1);
-      y = base - h * (1 - 0.75 * f ** 1.4) + style.rough * n * f * 2 - (f > 0.99 ? 0 : 0);
+      // the front and back edges come down to the base so the ridge meets its skirt without a gap
+      y = base - h * (1 - f ** 1.6) + style.rough * n * f * (1 - f) * 6;
     } else y = row;
     pos.push(x, -y, z);
     // shade: lighter towards the crest, a snowy glint on the high peaks of the far range
@@ -72,6 +73,92 @@ function rangeGeometry(view, image, style) {
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.computeVertexNormals();
   return g;
+}
+
+// The lunar road: a regolith strip whose surface follows the arcade's ground line (craters
+// included) and whose texture is anchored to the road scroll so it slides with the terrain.
+function makeRoad(view) {
+  const D = 16, R = 6, COLS = 241;
+  const nTop = COLS * (R + 1), nFront = COLS * 2;
+  const pos = new Float32Array((nTop + nFront) * 3), col = new Float32Array((nTop + nFront) * 3);
+  const index = [];
+  for (let x = 0; x < COLS - 1; x++) {
+    for (let r = 0; r < R; r++) {
+      const a = x * (R + 1) + r, b = a + R + 1;
+      index.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+    const f = nTop + x * 2, f2 = f + 2;
+    index.push(f, f + 1, f2, f + 1, f2 + 1, f2);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setIndex(index);
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, flatShading: true, envMapIntensity: 0.3 });
+  mat.clippingPlanes = view.clipPlanes;
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  mesh.visible = false;
+  // periodic detail (period 256 = one road wrap) so the texture never seams
+  const P = Math.PI * 2 / 256;
+  const detail = (u, z) => 0.5 * Math.sin(u * P * 9 + z * 0.4) * Math.sin(u * P * 23 + 1.3) + 0.35 * Math.sin(u * P * 61 + z * 1.7) + 0.25 * Math.sin(u * P * 127 - z * 0.9);
+  let lastKey = '';
+  let rest = [];
+  return {
+    mesh,
+    update(tiles, W, H, scroll) {
+      if (!tiles.length) { mesh.visible = false; return tiles; }
+      const idx = rasterize(view, tiles, W, H);
+      // the road surface is the colour that fills the bottom of the screen; anything else
+      // (the green band, signs) stays as tiles
+      const counts = new Map();
+      for (let i = (H - 12) * W; i < W * H; i++) if (idx[i] >= 0) counts.set(idx[i], (counts.get(idx[i]) || 0) + 1);
+      const surf = [...counts].sort((a, b) => b[1] - a[1]).slice(0, 1).map(e => e[0]);
+      if (!surf.length) { mesh.visible = false; return tiles; }
+      const top = new Float32Array(COLS).fill(H);
+      const covered = new Uint8Array(W * H);
+      for (let x = 0; x < W; x++) {
+        for (let y = 0; y < H; y++) {
+          const i = y * W + x;
+          if (surf.includes(idx[i])) { covered[i] = 1; if (top[x] === H) top[x] = y; }
+        }
+      }
+      top[W] = top[W - 1];
+      const key = `${scroll}:${top.join(',')}`;
+      if (key !== lastKey) {
+        lastKey = key;
+        const base = view.linear(surf[0]);
+        let p = 0, c = 0;
+        for (let x = 0; x < COLS; x++) {
+          const u = x + scroll;
+          const t0 = top[x];
+          for (let r = 0; r <= R; r++) {
+            const z = D - (2 * D * r) / R;
+            const bump = r === 0 ? 0 : detail(u, z) * 0.6;
+            pos[p++] = x - W / 2; pos[p++] = H / 2 - t0 + bump; pos[p++] = z;
+            const k = 0.78 + 0.22 * detail(u * 1.7, z * 2) - (t0 > 225 ? 0.25 : 0);
+            col[c++] = base[0] * k; col[c++] = base[1] * k; col[c++] = base[2] * k;
+          }
+        }
+        for (let x = 0; x < COLS; x++) {
+          const u = x + scroll;
+          for (const y of [top[x], H + 4]) {
+            pos[p++] = x - W / 2; pos[p++] = H / 2 - y; pos[p++] = D;
+            const k = 0.62 + 0.15 * detail(u * 2.3, y * 0.5);
+            col[c++] = base[0] * k; col[c++] = base[1] * k; col[c++] = base[2] * k;
+          }
+        }
+        geo.attributes.position.needsUpdate = true;
+        geo.attributes.color.needsUpdate = true;
+        geo.computeVertexNormals();
+        geo.computeBoundingSphere();
+        rest = cutTiles(tiles, covered, W, H);
+      }
+      mesh.visible = true;
+      return rest;
+    },
+    dispose() { geo.dispose(); mat.dispose(); },
+  };
 }
 
 export function mpStructures(view) {
@@ -100,6 +187,9 @@ export function mpStructures(view) {
     return r;
   }
 
+  const road = makeRoad(view);
+  group.add(road.mesh);
+
   return {
     group,
     update(tiles, W, H) {
@@ -124,8 +214,11 @@ export function mpStructures(view) {
       }
       for (const [img, r] of ranges) if (!active.has(img)) for (const mm of r.meshes) mm.visible = false;
       // the rebuilt layers replace their bitmap tiles; the city skyline (image 2) stays as tiles
-      return tiles.filter(t => !((t.kind === 'mountain' && active.has(0)) || (t.kind === 'hill' && active.has(1))));
+      const kept = tiles.filter(t => !((t.kind === 'mountain' && active.has(0)) || (t.kind === 'hill' && active.has(1))));
+      const groundTiles = kept.filter(t => t.kind === 'ground');
+      const others = kept.filter(t => t.kind !== 'ground');
+      return [...others, ...road.update(groundTiles, W, H, m.shot ? m.shot.scroll : 0)];
     },
-    dispose() { disposeTree(group); mat.dispose(); ranges.clear(); },
+    dispose() { disposeTree(group); mat.dispose(); road.dispose(); ranges.clear(); },
   };
 }
