@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { buildConstruction } from './themes/construction.js';
 import { buildJungle } from './themes/jungle.js';
 import { buildMoon } from './themes/moon.js';
+import { buildNeon } from './themes/neon.js';
 
 function hudMaterial() {
   const m = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
@@ -117,7 +118,37 @@ function mpatrolProfile() {
   };
 }
 
-const PROFILES = { dkong: dkongProfile, junglek: junglekProfile, mpatrolw: mpatrolProfile };
+// Ms. Pac-Man: glossy candy-coloured maze walls on a floating board, glowing dots.
+function mspacmanProfile() {
+  const materials = {
+    wall: new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.0, clearcoat: 0.8, clearcoatRoughness: 0.2, envMapIntensity: 0.3 }),
+    dot: hudMaterial(),
+    hud: hudMaterial(),
+  };
+  materials.dot.userData.castShadow = true;
+  return {
+    materials,
+    backdrop: buildNeon,
+    cameraTilt: 70,
+    margin: 0.54,
+    inflate: { thickness: 0.9, minDepth: 5, maxDepth: 20 },
+    lighting: {
+      hemiSky: 0xb9d4ff, hemiGround: 0x101624, hemiIntensity: 0.6,
+      sunColor: 0xffffff, sunIntensity: 1.6, sunPos: [-140, 200, 320],
+      rimColor: 0x48c8ff, rimIntensity: 1.0, exposure: 0.9, bloomStrength: 0.35, bloomThreshold: 0.95,
+    },
+    spriteZ: kind => (kind === 'hud' ? 8 : 5),
+    classifyTile(t, x, y, p, color) {
+      switch (t.kind) {
+        case 'wall': return [{ group: 'wall', z0: -2, z1: 7, color }];
+        case 'dot': return [{ group: 'dot', z0: 0, z1: 2.5, color }];
+        default: return [{ group: 'hud', z0: -1, z1: 1.5, color }];
+      }
+    },
+  };
+}
+
+const PROFILES = { dkong: dkongProfile, junglek: junglekProfile, mpatrolw: mpatrolProfile, mspacman: mspacmanProfile };
 
 export function getProfile(id, view) {
   const make = PROFILES[id];

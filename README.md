@@ -10,6 +10,7 @@ The program code is unchanged and only the graphics are reinterpreted, which mea
 |---|---|---|---|
 | Donkey Kong (US set 1) | `dkong.zip` | Z80 main CPU, i8035 sound CPU, 8257 DMA, tile/sprite video, discrete sounds (approximated) | Playable, remastered |
 | Jungle King (Japan) | `junglek.zip` | Taito SJ: Z80 ×2, AY-3-8910 ×4 + DAC, char RAM, 3 column-scrolled playfields, PROM priority, hardware collision detection | Playable, remastered |
+| Ms. Pac-Man | `mspacman.zip` | Namco Pac-Man board + Midway aux board (encrypted ROM overlay with trap-address bank switching), Namco WSG 3-voice wavetable | Playable, remastered |
 | Moon Patrol (Williams) | `mpatrolw.zip` | Irem M52: Z80, M6803 sound CPU, AY-3-8910 ×2, MSM5205 ADPCM, 3 parallax bitmap backgrounds, scroll-board protection | Playable, remastered |
 
 ROMs are **not included**. Put your own MAME-format zips next to `index.html`, or load them through the in-app dialog. A ZIP you load in the dialog is cached in your browser's IndexedDB and never uploaded.
@@ -54,7 +55,7 @@ ROM program (Z80) ─► video RAM + sprite RAM every frame
    • HUD tiles     → emissive voxel text with bloom
    • layers        → each playfield at its own depth, scaled so it projects exactly where the arcade drew it
    • clip planes   → camera-frustum planes keep scrolling playfields inside the original picture
-   • themes        → DK: night construction site, city, crane · Jungle King: rainforest frame, light shafts, clouds · Moon Patrol: lunar plain, Earth, starfield, base domes
+   • themes        → DK: night construction site, city, crane · Jungle King: rainforest frame, light shafts, clouds · Moon Patrol: lunar plain, Earth, starfield, base domes · Ms. Pac-Man: lacquered board over a neon synth grid
 ```
 
 The sprite figurines are cached by content hash, so each animation frame is sculpted only once.
@@ -69,6 +70,7 @@ js/cpu/m6803.js              MC6803 core with on-chip timer/ports (Irem sound bo
 js/machines/dkong.js         Donkey Kong hardware + scene description
 js/machines/junglek.js       Taito SJ hardware (Jungle King)
 js/machines/mpatrol.js       Irem M52 hardware (Moon Patrol)
+js/machines/mspacman.js      Pac-Man board + Ms. Pac-Man aux board, Namco WSG
 js/audio/ay8910.js           AY-3-8910 PSG
 js/audio/msm5205.js          MSM5205 ADPCM
 js/audio/                    DAC/discrete synthesis, AudioWorklet output
