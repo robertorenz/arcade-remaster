@@ -34,7 +34,7 @@ export class RigLayer {
         rig.group.traverse(o => {
           if (!o.isMesh) return;
           o.castShadow = !o.userData.noShadow;
-          o.receiveShadow = true;
+          o.receiveShadow = !o.userData.noReceive;
           // games framed by clip planes also clip the models at the edge of the arcade picture
           if (clip) for (const m of Array.isArray(o.material) ? o.material : [o.material]) { m.clippingPlanes = clip; m.needsUpdate = true; }
         });

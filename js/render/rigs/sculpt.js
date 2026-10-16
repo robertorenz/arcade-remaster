@@ -29,7 +29,8 @@ export function taper(points, radii, material, { radial = 14, seg = 0, caps = tr
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < radial; j++) {
       const a = i * (radial + 1) + j, b = a + radial + 1;
-      index.push(a, b, a + 1, b, b + 1, a + 1);
+      // wound so faces point the same way as the outward vertex normals
+      index.push(a, a + 1, b, b, a + 1, b + 1);
     }
   }
   const g = new THREE.BufferGeometry();

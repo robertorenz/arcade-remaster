@@ -14,6 +14,9 @@ import { joustRigSet } from './rigs/joust-rigs.js';
 import { mpRigSet } from './rigs/mp-rigs.js';
 import { mpStructures } from './structures/mp-structs.js';
 import { jkRigSet } from './rigs/jk-rigs.js';
+import { buildCosmos } from './themes/cosmos.js';
+import { qbRigSet } from './rigs/qbert-rigs.js';
+import { qbStructures } from './structures/qbert-structs.js';
 
 function hudMaterial() {
   const m = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
@@ -245,7 +248,34 @@ function joustProfile() {
   };
 }
 
-const PROFILES = { dkong: dkongProfile, junglek: junglekProfile, mpatrolw: mpatrolProfile, mspacman: mspacmanProfile, joust: joustProfile };
+// Q*bert: the pyramid floats in space; cube art is sculpted thick and glossy, HUD text glows.
+function qbertProfile() {
+  const materials = {
+    cube: new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.0, clearcoat: 0.7, clearcoatRoughness: 0.2, envMapIntensity: 0.35 }),
+    hud: hudMaterial(),
+  };
+  return {
+    materials,
+    backdrop: buildCosmos,
+    rigs: qbRigSet,
+    structures: qbStructures,
+    margin: 0.54,
+    cameraTilt: 48,
+    inflate: { thickness: 0.85, minDepth: 5, maxDepth: 18 },
+    lighting: {
+      hemiSky: 0xbfd8ff, hemiGround: 0x1a2030, hemiIntensity: 0.75,
+      sunColor: 0xfff2e0, sunIntensity: 2.0, sunPos: [-170, 250, 300],
+      rimColor: 0x5ad0ff, rimIntensity: 0.8, exposure: 1.0, bloomStrength: 0.35, bloomThreshold: 0.93,
+    },
+    spriteZ: kind => (kind === 'hud' ? 6 : 12),
+    classifyTile(t, x, y, p, color) {
+      if (t.kind === 'cube') return [{ group: 'cube', z0: -8, z1: 8, color }];
+      return [{ group: 'hud', z0: -1, z1: 1.5, color }];
+    },
+  };
+}
+
+const PROFILES = { dkong: dkongProfile, junglek: junglekProfile, mpatrolw: mpatrolProfile, mspacman: mspacmanProfile, joust: joustProfile, qbert: qbertProfile };
 
 export function getProfile(id, view) {
   const make = PROFILES[id];
