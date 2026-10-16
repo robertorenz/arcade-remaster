@@ -46,7 +46,7 @@ export class RigLayer {
       const z = obj.z ?? 2;
       const s = this.view.depthScale(z);
       rig.group.position.set((cx - W / 2) * s, (H / 2 - cy) * s, z);
-      rig.group.scale.setScalar(s * (obj.scale || 1));
+      rig.group.scale.setScalar(s * (obj.scale || 1) * (this.set.scale || 1));
       rig.update(obj, { t: this.time, dt, st, view: this.view });
       if (rig.light) lights.push({ x: rig.group.position.x, y: rig.group.position.y, z: z + 12 });
       if (obj.player && !player) player = { x: cx, y: cy };

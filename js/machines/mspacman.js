@@ -386,9 +386,9 @@ export function mspTileKind(code, col) {
   return 'hud';
 }
 
-// Sprite slots: 0-3 ghosts, 4 Ms. Pac-Man, 5 fruit (in-game)
+// Sprite slots: 1-4 ghosts, 5 Ms. Pac-Man, others fruit (in-game)
 export function mspSpriteKind(code, slot) {
-  if (slot === 4) return 'player';
-  if (slot < 4) return 'ghost';
+  if (slot === 5) return 'player';
+  if (slot >= 1 && slot <= 4) return 'ghost';
   return 'other';
 }

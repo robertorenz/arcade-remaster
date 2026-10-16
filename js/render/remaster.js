@@ -458,6 +458,7 @@ export class RemasterView {
     if (this.tiles) { this.scene.remove(this.tiles.group); this.tiles.dispose(); }
     if (this.sprites) { this.scene.remove(this.sprites.group); this.sprites.dispose(); }
     if (this.rigs) { this.scene.remove(this.rigs.group); this.rigs.dispose(); this.rigs = null; }
+    if (this.structs) { this.scene.remove(this.structs.group); this.structs.dispose(); this.structs = null; }
     if (this.backdrop) this.backdrop.dispose();
     this.machine = machine;
     this.linCache.clear();
@@ -472,6 +473,10 @@ export class RemasterView {
     if (this.style === 'redrawn' && this.profile.rigs) {
       this.rigs = new RigLayer(this, this.profile.rigs(this));
       this.scene.add(this.rigs.group);
+    }
+    if (this.style === 'redrawn' && this.profile.structures) {
+      this.structs = this.profile.structures(this);
+      this.scene.add(this.structs.group);
     }
     this.applyLighting(this.profile.lighting || {});
     const clip = this.profile.clip ? this.clipPlanes : null;
@@ -588,6 +593,8 @@ export class RemasterView {
       sprites = [...tiles.filter(t => t.kind === 'art').map(t => ({ ...t, kind: 'other' })), ...sprites];
       tiles = tiles.filter(t => t.kind !== 'art');
     }
+    // redrawn structures take over the tiles they rebuild and hand back the rest
+    if (this.structs) tiles = this.structs.update(tiles, W, H, this.time);
     // camera first: layer depth compensation depends on its distance
     const dist = this.fitDistance();
     this.baseDist = dist;
@@ -636,6 +643,10 @@ export class RemasterView {
       const sway = mode === 'dynamic' ? Math.sin(this.time * 0.25) * 6 : 0;
       cam.position.set(this.camState.x * 1.4 + sway, tilt + this.camState.y, dist);
       cam.lookAt(this.camState.x * 0.45, this.camState.y * 0.35 - 2, 0);
+    }
+    if (this.debugCam) {   // inspection hook: window.arcade.remaster.debugCam = { pos: [x,y,z], at: [x,y,z] }
+      cam.position.set(...this.debugCam.pos);
+      cam.lookAt(...this.debugCam.at);
     }
     cam.updateMatrixWorld();
     if (this.profile.clip) this.updateClipPlanes(W, H);

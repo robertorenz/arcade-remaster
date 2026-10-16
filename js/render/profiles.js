@@ -7,6 +7,11 @@ import { buildNeon } from './themes/neon.js';
 import { buildCavern } from './themes/cavern.js';
 import { dkRigSet } from './rigs/dk-rigs.js';
 import { pacRigSet } from './rigs/pac-rigs.js';
+import { dkStructures } from './structures/dk-structs.js';
+import { pacStructures } from './structures/pac-structs.js';
+import { joustStructures } from './structures/joust-structs.js';
+import { joustRigSet } from './rigs/joust-rigs.js';
+import { mpRigSet } from './rigs/mp-rigs.js';
 
 function hudMaterial() {
   const m = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
@@ -25,6 +30,7 @@ function dkongProfile(view) {
     materials,
     backdrop: buildConstruction,
     rigs: dkRigSet,
+    structures: dkStructures,
     maskSprites: true,       // the game hides ladder tops with all-black sprites
     skipBlackTiles: true,    // black tile pixels are background on this hardware
     inflate: { thickness: 0.8, minDepth: 5, maxDepth: 22 },
@@ -99,6 +105,7 @@ function mpatrolProfile() {
   return {
     materials,
     backdrop: buildMoon,
+    rigs: mpRigSet,
     clip: true,
     margin: 0.56,
     cameraTilt: 40,
@@ -134,6 +141,7 @@ function mspacmanProfile() {
     materials,
     backdrop: buildNeon,
     rigs: pacRigSet,
+    structures: pacStructures,
     cameraTilt: 70,
     margin: 0.54,
     inflate: { thickness: 0.9, minDepth: 5, maxDepth: 20 },
@@ -163,6 +171,8 @@ function joustProfile() {
   return {
     materials,
     backdrop: buildCavern,
+    structures: joustStructures,
+    rigs: joustRigSet,
     margin: 0.55,
     cameraTilt: 45,
     inflate: { thickness: 0.8, minDepth: 4, maxDepth: 16 },
