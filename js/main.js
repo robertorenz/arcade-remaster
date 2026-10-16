@@ -293,8 +293,8 @@ function init() {
   });
   setMuted(prefs.muted);
   $('btnPlay').addEventListener('click', start);
-  $('btnCoin').addEventListener('click', () => input.pulse('coin'));
-  $('btnStart').addEventListener('click', () => input.pulse('start1'));
+  $('btnCoin').addEventListener('click', () => input.pulse('coin', 22));
+  $('btnStart').addEventListener('click', () => input.pulse('start1', 8));
   $('btnPause').addEventListener('click', () => setPaused(!paused));
   $('btnMute').addEventListener('click', () => setMuted(!prefs.muted));
   $('btnHelp').addEventListener('click', showHelp);

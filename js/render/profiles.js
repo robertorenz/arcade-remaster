@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { buildConstruction } from './themes/construction.js';
 import { buildJungle } from './themes/jungle.js';
+import { buildMoon } from './themes/moon.js';
 
 function hudMaterial() {
   const m = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
@@ -80,7 +81,43 @@ function junglekProfile() {
   };
 }
 
-const PROFILES = { dkong: dkongProfile, junglek: junglekProfile };
+// Irem M52 (Moon Patrol): distant mountains, nearer hills/city, the character layer (HUD panel,
+// lunar road) and sprites, each at increasing depth for real parallax.
+function mpatrolProfile() {
+  const materials = {
+    rock: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, metalness: 0.0, flatShading: true, envMapIntensity: 0.25 }),
+    ground: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85, metalness: 0.05, envMapIntensity: 0.3 }),
+    tile: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.1 }),
+    panel: hudMaterial(),
+  };
+  const LAYER_Z = { 1: -140, 2: -75, 3: 0 };
+  return {
+    materials,
+    backdrop: buildMoon,
+    clip: true,
+    margin: 0.56,
+    cameraTilt: 40,
+    inflate: { thickness: 0.75, minDepth: 4, maxDepth: 18 },
+    lighting: {
+      hemiSky: 0x9fb4cc, hemiGround: 0x2a2622, hemiIntensity: 0.75,
+      sunColor: 0xfff4e2, sunIntensity: 2.6, sunPos: [260, 220, 240],
+      rimColor: 0x7fb8ff, rimIntensity: 0.7, exposure: 1.0, bloomStrength: 0.35, bloomThreshold: 0.93,
+    },
+    layerZ: id => LAYER_Z[id] ?? 0,
+    spriteZ: () => 2,
+    classifyTile(t, x, y, p, color) {
+      switch (t.kind) {
+        case 'mountain': return [{ group: 'rock', z0: -10, z1: 6, color }];
+        case 'hill': return [{ group: 'rock', z0: -7, z1: 5, color }];
+        case 'ground': return [{ group: 'ground', z0: -16, z1: 16, color }];
+        case 'panel': return [{ group: 'panel', z0: -1, z1: 1.5, color }];
+        default: return [{ group: 'tile', z0: -2, z1: 2, color }];
+      }
+    },
+  };
+}
+
+const PROFILES = { dkong: dkongProfile, junglek: junglekProfile, mpatrolw: mpatrolProfile };
 
 export function getProfile(id, view) {
   const make = PROFILES[id];

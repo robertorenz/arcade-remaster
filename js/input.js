@@ -22,6 +22,8 @@ export class Input {
       if (!b || !this.enabled) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement) return;
       this.keys[b] = true;
+      // some boards only accept a coin held for ~19 frames; a quick tap must still count
+      if (b === 'coin' && !e.repeat) this.pulse('coin', 22);
       e.preventDefault();
     });
     addEventListener('keyup', e => {
