@@ -29,7 +29,7 @@ On Windows you can double-click `start.bat`. The app has no dependencies or buil
 | Mode | What you see |
 |---|---|
 | **Remastered** | The original pixel art sculpted into 3D (voxel scenery, rounded figurines) inside a themed diorama |
-| **Redrawn** | Hand-built 3D character models replace the sprites (Donkey Kong: Mario, Kong, Pauline, barrels, fireballs, oil drum, hammers; Ms. Pac-Man: Ms. Pac-Man and the ghosts), posed from the game's own animation frames; deluxe scenery for every game (searchlights, rain, neon signs and lightning; synthwave sun; shooting stars and a satellite; lava geysers; birds) |
+| **Redrawn** | Everything is rebuilt rather than sculpted from the pixels. **Characters**: sculpted, animated 3D models posed from the game's own animation data — Mario, Donkey Kong (fur), Pauline, barrels and fireballs; Ms. Pac-Man and the ghosts; Joust knights on ostriches and buzzards, pterodactyls and eggs; the Moon Patrol rover (its six wheels ride on the arcade's own suspension) and plasma shots; the Jungle King hero (hangs, runs, leaps, swims) and leafy vines. **Playfields**: Donkey Kong truss girders and round-rail ladders, Ms. Pac-Man dark-glass walls with neon rims and glowing pearls, Joust carved stone ledges, Moon Patrol faceted 3D mountain and hill ranges that scroll with the hardware. **Scenery**: deluxe backdrops (searchlights, rain, neon signs and lightning; synthwave sun; shooting stars and a satellite; lava geysers; birds) |
 | **Classic** | Pixel-exact original output, optional scanlines |
 | **Split** | Classic and 3D side by side |
 
@@ -95,7 +95,8 @@ js/render/inflate.js         pixel art → rounded mesh
 js/render/voxel.js           tile → voxel mesh
 js/render/profiles.js        per-game tile classification and materials
 js/render/themes/            per-game backdrops (with deluxe extras for Redrawn mode)
-js/render/rigs/              Redrawn mode: object classification and hand-built 3D models
+js/render/rigs/              Redrawn mode: object classification, sculpting toolkit and 3D character models
+js/render/structures/        Redrawn mode: rebuilt playfields (girders, maze walls, ledges, mountain ranges)
 serve.mjs, start.bat         local static server
 ```
 

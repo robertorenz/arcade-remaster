@@ -30,7 +30,14 @@ export class RigLayer {
       let rig = pool[n];
       if (!rig) {
         rig = this.set.create(obj.type);
-        rig.group.traverse(o => { if (o.isMesh) { o.castShadow = o.userData.noShadow ? false : true; o.receiveShadow = true; } });
+        const clip = this.view.profile.clip ? this.view.clipPlanes : null;
+        rig.group.traverse(o => {
+          if (!o.isMesh) return;
+          o.castShadow = !o.userData.noShadow;
+          o.receiveShadow = true;
+          // games framed by clip planes also clip the models at the edge of the arcade picture
+          if (clip) for (const m of Array.isArray(o.material) ? o.material : [o.material]) { m.clippingPlanes = clip; m.needsUpdate = true; }
+        });
         pool.push(rig);
         this.group.add(rig.group);
       }

@@ -12,6 +12,8 @@ import { pacStructures } from './structures/pac-structs.js';
 import { joustStructures } from './structures/joust-structs.js';
 import { joustRigSet } from './rigs/joust-rigs.js';
 import { mpRigSet } from './rigs/mp-rigs.js';
+import { mpStructures } from './structures/mp-structs.js';
+import { jkRigSet } from './rigs/jk-rigs.js';
 
 function hudMaterial() {
   const m = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
@@ -75,6 +77,7 @@ function junglekProfile() {
   return {
     materials,
     backdrop: buildJungle,
+    rigs: jkRigSet,
     clip: true,
     margin: 0.56,
     cameraTilt: 34,
@@ -106,6 +109,7 @@ function mpatrolProfile() {
     materials,
     backdrop: buildMoon,
     rigs: mpRigSet,
+    structures: mpStructures,
     clip: true,
     margin: 0.56,
     cameraTilt: 40,

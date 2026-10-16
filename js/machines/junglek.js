@@ -619,7 +619,7 @@ export class JungleKing {
         sprites.push({
           x: 255 - (sx + 15), y: 239 - (sy + 15), w: 16, h: 16, code, pal: color * 8,
           pixels: this.orient(g, 16, !fx, !fy, `s${bank}:${code}:${!fx}${!fy}`, h),
-          kind: 'other', order: orderPos[0], slot: which,
+          kind: 'other', order: orderPos[0], slot: which, flipx: !fx,
         });
       }
     }
