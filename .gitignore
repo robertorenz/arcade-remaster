@@ -1,0 +1,6 @@
+# ROM sets are copyrighted: never commit them
+*.zip
+roms/
+node_modules/
+.DS_Store
+Thumbs.db

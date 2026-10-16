@@ -1,0 +1,60 @@
+// Per-game remaster profiles: how tiles become 3D, materials, and the backdrop theme.
+import * as THREE from 'three';
+import { buildConstruction } from './themes/construction.js';
+
+function hudMaterial() {
+  const m = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+  m.userData.castShadow = false;
+  return m;
+}
+
+function dkongProfile(view) {
+  const materials = {
+    girder: new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.55, roughness: 0.34, envMapIntensity: 0.7 }),
+    ladder: new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.45, roughness: 0.28, envMapIntensity: 0.8 }),
+    hud: hudMaterial(),
+    art: view.materials.art,
+  };
+  return {
+    materials,
+    backdrop: buildConstruction,
+    inflate: { thickness: 0.8, minDepth: 5, maxDepth: 22 },
+    spriteZ: kind => (kind === 'hud' ? 12 : 1),
+    // steel pixels used to find beam slopes (ladder pixels excluded)
+    slopePixel: (t, p) => t.kind === 'struct' && p !== 3,
+    // flange rows (full-width steel lines) span the girder's whole depth; the rest is a truss
+    tileContext(t) {
+      if (t.kind !== 'struct') return null;
+      const flange = new Uint8Array(t.h);
+      for (let y = 0; y < t.h; y++) {
+        let full = true;
+        for (let x = 0; x < t.w; x++) {
+          const p = t.pixels[y * t.w + x];
+          if (!p || p === 3) { full = false; break; }
+        }
+        flange[y] = full ? 1 : 0;
+      }
+      return flange;
+    },
+    classifyTile(t, x, y, p, color, flange) {
+      switch (t.kind) {
+        case 'hud': return [{ group: 'hud', z0: -1, z1: 1.5, color }];
+        case 'art': return [{ group: 'art', z0: -3, z1: 3, color }];
+        default:
+          if (p === 3) return [{ group: 'ladder', z0: -1.6, z1: 1.6, color }];
+          if (flange[y]) return [{ group: 'girder', z0: -9, z1: 9, color }];
+          return [{ group: 'girder', z0: 6.5, z1: 9, color }, { group: 'girder', z0: -9, z1: -6.5, color }];
+      }
+    },
+  };
+}
+
+const PROFILES = { dkong: dkongProfile };
+
+export function getProfile(id, view) {
+  const make = PROFILES[id];
+  if (!make) throw new Error(`No remaster profile for ${id}`);
+  return make(view);
+}
+
+export function registerProfile(id, factory) { PROFILES[id] = factory; }
