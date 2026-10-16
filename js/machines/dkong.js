@@ -304,7 +304,7 @@ export class DonkeyKong {
     for (const s of sc.sprites) {
       const x = 239 - s.ry - 15, y = s.rx;
       if (x <= -16 || x >= 224 || y <= -16 || y >= 256) continue;
-      sprites.push({ x, y, w: 16, h: 16, code: s.code, color: s.color, kind: dkSpriteKind(s.code), pixels: this.spriteDisp(s.code, s.flipx, s.flipy) });
+      sprites.push({ x, y, w: 16, h: 16, code: s.code, color: s.color, kind: dkSpriteKind(s.code), pixels: this.spriteDisp(s.code, s.flipx, s.flipy), hflip: s.flipy, vflip: s.flipx, slot: s.slot });
     }
     return { tiles, sprites };
   }

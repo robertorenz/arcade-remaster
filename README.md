@@ -24,6 +24,15 @@ node serve.mjs        # then open http://localhost:8080/
 
 On Windows you can double-click `start.bat`. The app has no dependencies or build step. Three.js is loaded from a CDN for the 3D view.
 
+## View modes
+
+| Mode | What you see |
+|---|---|
+| **Remastered** | The original pixel art sculpted into 3D (voxel scenery, rounded figurines) inside a themed diorama |
+| **Redrawn** | Hand-built 3D character models replace the sprites (Donkey Kong: Mario, Kong, Pauline, barrels, fireballs, oil drum, hammers; Ms. Pac-Man: Ms. Pac-Man and the ghosts), posed from the game's own animation frames; deluxe scenery for every game (searchlights, rain, neon signs and lightning; synthwave sun; shooting stars and a satellite; lava geysers; birds) |
+| **Classic** | Pixel-exact original output, optional scanlines |
+| **Split** | Classic and 3D side by side |
+
 ## Controls
 
 | Key | Action |
@@ -33,7 +42,7 @@ On Windows you can double-click `start.bat`. The app has no dependencies or buil
 | X / Alt | Second button (Moon Patrol: fire) |
 | 5 or C | Insert coin |
 | 1 / 2 | Start 1P / 2P |
-| V | Cycle Remastered / Classic / Split view |
+| V | Cycle Remastered / Redrawn / Classic / Split view |
 | P / M / F / H | Pause / mute / fullscreen / help |
 
 Gamepads are supported: D-pad or stick to move, A to jump, Select for coin, Start to start.
@@ -85,7 +94,8 @@ js/render/remaster.js        2.5D renderer (tiles, sprites, lights, camera, post
 js/render/inflate.js         pixel art → rounded mesh
 js/render/voxel.js           tile → voxel mesh
 js/render/profiles.js        per-game tile classification and materials
-js/render/themes/            per-game backdrops
+js/render/themes/            per-game backdrops (with deluxe extras for Redrawn mode)
+js/render/rigs/              Redrawn mode: object classification and hand-built 3D models
 serve.mjs, start.bat         local static server
 ```
 

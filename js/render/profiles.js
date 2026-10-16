@@ -5,6 +5,8 @@ import { buildJungle } from './themes/jungle.js';
 import { buildMoon } from './themes/moon.js';
 import { buildNeon } from './themes/neon.js';
 import { buildCavern } from './themes/cavern.js';
+import { dkRigSet } from './rigs/dk-rigs.js';
+import { pacRigSet } from './rigs/pac-rigs.js';
 
 function hudMaterial() {
   const m = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
@@ -22,6 +24,7 @@ function dkongProfile(view) {
   return {
     materials,
     backdrop: buildConstruction,
+    rigs: dkRigSet,
     maskSprites: true,       // the game hides ladder tops with all-black sprites
     skipBlackTiles: true,    // black tile pixels are background on this hardware
     inflate: { thickness: 0.8, minDepth: 5, maxDepth: 22 },
@@ -130,6 +133,7 @@ function mspacmanProfile() {
   return {
     materials,
     backdrop: buildNeon,
+    rigs: pacRigSet,
     cameraTilt: 70,
     margin: 0.54,
     inflate: { thickness: 0.9, minDepth: 5, maxDepth: 20 },

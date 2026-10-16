@@ -102,7 +102,7 @@ function mergeGeometries(list) {
   return out;
 }
 
-export function buildConstruction(scene, { width, height }) {
+export function buildConstruction(scene, { width, height, deluxe }) {
   const group = new THREE.Group();
   scene.add(group);
   const groundY = -height / 2 - 1;
@@ -226,12 +226,104 @@ export function buildConstruction(scene, { width, height }) {
     group.add(crane);
   }
 
+  // ---- deluxe scenery (Redrawn mode) ------------------------------------------------------
+  const extras = { update() {} };
+  if (deluxe) {
+    const r = rng(77);
+    // wet, reflective concrete
+    group.traverse(o => { if (o.isMesh && o.geometry.type === 'PlaneGeometry') { o.material.roughness = 0.12; o.material.metalness = 0.5; o.material.envMapIntensity = 0.5; } });
+    // searchlights sweeping the sky, with visible beams
+    const beams = [];
+    const beamMat = new THREE.MeshBasicMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0.09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false });
+    for (const x of [-520, 560]) {
+      const pivot = new THREE.Group();
+      pivot.position.set(x, groundY - 10, -520);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(70, 1500, 24, 1, true), beamMat);
+      cone.position.y = 750;
+      pivot.add(cone);
+      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(9, 12, 14, 16), new THREE.MeshBasicMaterial({ color: 0xf2f8ff, toneMapped: false }));
+      pivot.add(lamp);
+      group.add(pivot);
+      beams.push(pivot);
+    }
+    // drifting clouds across the moon
+    const cloudTex = (() => {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 256;
+      const g = c.getContext('2d');
+      for (let i = 0; i < 40; i++) {
+        const x = 60 + r() * 392, y = 80 + r() * 100, rad = 30 + r() * 60;
+        const grad = g.createRadialGradient(x, y, 0, x, y, rad);
+        grad.addColorStop(0, 'rgba(120,135,160,0.35)'); grad.addColorStop(1, 'rgba(120,135,160,0)');
+        g.fillStyle = grad; g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+      }
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    })();
+    const clouds = [];
+    for (let i = 0; i < 5; i++) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(900, 450), new THREE.MeshBasicMaterial({ map: cloudTex, transparent: true, depthWrite: false, fog: false, opacity: 0.8 }));
+      m.position.set(-1600 + i * 800, 300 + r() * 300, -1300 + r() * 100);
+      group.add(m);
+      clouds.push(m);
+    }
+    // neon signs on the skyline
+    const signColors = ['#ff3b5c', '#2fe0ff', '#ffd23f', '#5dff8a', '#ff8a2a'];
+    const words = ['HOTEL', 'DINER', 'OPEN', 'BAR', 'CAFE', 'MOTEL', '24H'];
+    const signs = [];
+    for (let i = 0; i < 9; i++) {
+      const word = words[i % words.length], col = signColors[i % signColors.length];
+      const tex = (() => {
+        const c = document.createElement('canvas'); c.width = 256; c.height = 96;
+        const g = c.getContext('2d');
+        g.font = 'bold 64px Inter, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.shadowColor = col; g.shadowBlur = 18; g.fillStyle = col;
+        g.fillText(word, 128, 50); g.fillText(word, 128, 50);
+        const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+      })();
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(120, 45), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false }));
+      const side = i % 2 ? 1 : -1;
+      m.position.set(side * (330 + r() * 900), groundY + 90 + r() * 260, -1000 + r() * 60);
+      m.userData.flicker = r() * 10;
+      group.add(m);
+      signs.push(m);
+    }
+    // rain
+    const N = 1600;
+    const pos = new Float32Array(N * 6);
+    for (let i = 0; i < N; i++) {
+      const x = (r() - 0.5) * 1600, y = groundY + r() * 900, z = -500 + r() * 700;
+      pos.set([x, y, z, x - 2, y - 14, z], i * 6);
+    }
+    const rg = new THREE.BufferGeometry();
+    rg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const rain = new THREE.LineSegments(rg, new THREE.LineBasicMaterial({ color: 0x9fb8d8, transparent: true, opacity: 0.35, depthWrite: false }));
+    group.add(rain);
+    // lightning flash
+    const flash = new THREE.HemisphereLight(0xcfe0ff, 0x223344, 0);
+    group.add(flash);
+    let nextFlash = 6;
+    extras.update = t => {
+      beams.forEach((b, i) => { b.rotation.z = Math.sin(t * 0.35 + i * 2) * 0.55; b.rotation.x = Math.sin(t * 0.21 + i) * 0.15; });
+      clouds.forEach((c, i) => { c.position.x += 0.25 + i * 0.03; if (c.position.x > 2200) c.position.x = -2200; });
+      signs.forEach(m => { m.material.opacity = Math.sin(t * 13 + m.userData.flicker) > -0.93 ? 1 : 0.25; });
+      const a = rg.attributes.position.array;
+      for (let i = 0; i < N; i++) {
+        const o = i * 6;
+        a[o + 1] -= 9; a[o + 4] -= 9; a[o] -= 1.2; a[o + 3] -= 1.2;
+        if (a[o + 4] < groundY - 10) { const y = groundY + 700 + Math.random() * 200; a[o + 1] = y; a[o + 4] = y - 14; }
+      }
+      rg.attributes.position.needsUpdate = true;
+      if (t > nextFlash) { flash.intensity = 3; nextFlash = t + 7 + Math.random() * 12; }
+      flash.intensity *= 0.86;
+    };
+  }
+
   const blinkers = [];
   group.traverse(o => { if (o.userData.blink) blinkers.push(o); });
 
   return {
     group,
     update(t) {
+      extras.update(t);
       const on = Math.sin(t * 3.2) > 0.2;
       for (const b of blinkers) b.visible = on;
     },

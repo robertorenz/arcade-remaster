@@ -35,7 +35,7 @@ function lavaTexture() {
   return t;
 }
 
-export function buildCavern(scene, { width: W, height: H }) {
+export function buildCavern(scene, { width: W, height: H, deluxe }) {
   const group = new THREE.Group();
   scene.add(group);
   const r = rng(13);
@@ -107,9 +107,37 @@ export function buildCavern(scene, { width: W, height: H }) {
   const embers = new THREE.Points(eg, new THREE.PointsMaterial({ map: dot, size: 9, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
   group.add(embers);
 
+  const geysers = [];
+  if (deluxe) {
+    const gm = new THREE.MeshBasicMaterial({ color: 0xffa030, toneMapped: false, transparent: true, opacity: 0.9 });
+    for (let i = 0; i < 4; i++) {
+      const col = new THREE.Group();
+      for (let k = 0; k < 18; k++) {
+        const blob = new THREE.Mesh(new THREE.SphereGeometry(6 + (k % 3) * 3, 10, 8), gm);
+        blob.userData.k = k;
+        col.add(blob);
+      }
+      const side = i % 2 ? 1 : -1;
+      col.position.set(side * (W * 0.75 + i * 120), -H / 2 - 40, -300 - i * 180);
+      col.userData.t0 = i * 2.7;
+      group.add(col);
+      geysers.push(col);
+    }
+  }
+
   return {
     group,
     update(t) {
+      for (const gy of geysers) {
+        const k = ((t + gy.userData.t0) % 9) / 2.2;
+        gy.visible = k < 1;
+        gy.children.forEach(b => {
+          const u = b.userData.k / 18;
+          const hgt = Math.sin(Math.min(1, k) * Math.PI) * 420 * u;
+          b.position.set(Math.sin(u * 9 + t) * 10 * u, hgt, Math.cos(u * 7) * 8);
+          b.scale.setScalar(1.4 - u * 0.8);
+        });
+      }
       lavaTex.offset.set((t * 0.004) % 1, (t * 0.002) % 1);
       glows.forEach((l, i) => { l.intensity = 9000 * (0.8 + 0.2 * Math.sin(t * 2.3 + i * 1.7) * Math.sin(t * 0.7 + i)); });
       const p = eg.attributes.position;

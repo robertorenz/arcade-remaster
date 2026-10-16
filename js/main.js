@@ -116,6 +116,7 @@ async function ensureRemaster() {
   try {
     const mod = await import('./render/remaster.js');
     remaster = new mod.RemasterView($('viewRemaster'));
+    remaster.style = prefs.style || 'remaster';
     remaster.setSettings({ bloom: prefs.bloom, camera: prefs.camera, shadows: prefs.shadows });
   } catch (e) {
     console.error(e);
@@ -148,7 +149,7 @@ async function loadGame(id) {
   classic.setMachine(machine);
   if (prefs.mode !== 'classic') {
     const r = await ensureRemaster();
-    if (r) r.setMachine(machine);
+    if (r) { r.setMachine(machine); r.appliedStyle = r.style; }
   }
   document.querySelectorAll('#gameTabs button').forEach(b => b.classList.toggle('active', b.dataset.id === Machine.info.id));
   $('statusGame').textContent = Machine.info.title;
@@ -168,12 +169,17 @@ setInterval(saveNvram, 10000);
 addEventListener('pagehide', saveNvram);
 
 async function setMode(mode) {
-  prefs.mode = mode; savePrefs();
-  stage.dataset.mode = mode;
+  prefs.mode = mode;
+  if (mode === 'remaster' || mode === 'redrawn') prefs.style = mode;
+  savePrefs();
+  stage.dataset.mode = mode === 'redrawn' ? 'remaster' : mode;
   document.querySelectorAll('#viewMode button').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
   if (mode !== 'classic' && machine) {
     const r = await ensureRemaster();
-    if (r && r.machine !== machine) r.setMachine(machine);
+    if (r) {
+      r.style = prefs.style || 'remaster';
+      if (r.machine !== machine || r.appliedStyle !== r.style) { r.setMachine(machine); r.appliedStyle = r.style; }
+    }
   }
   requestAnimationFrame(() => { classic.resize(); remaster?.resize(); });
 }
@@ -302,7 +308,7 @@ async function start() {
 
 function init() {
   buildTabs();
-  stage.dataset.mode = prefs.mode;
+  stage.dataset.mode = prefs.mode === 'redrawn' ? 'remaster' : prefs.mode;
   stage.classList.toggle('crt', prefs.crt);
   document.querySelectorAll('#viewMode button').forEach(b => {
     b.classList.toggle('active', b.dataset.mode === prefs.mode);
@@ -327,7 +333,7 @@ function init() {
       case 'KeyH': showHelp(); break;
       case 'KeyF': $('btnFull').click(); break;
       case 'KeyV': {
-        const modes = ['remaster', 'classic', 'split'];
+        const modes = ['remaster', 'redrawn', 'classic', 'split'];
         setMode(modes[(modes.indexOf(prefs.mode) + 1) % modes.length]);
         break;
       }

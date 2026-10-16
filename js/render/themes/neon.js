@@ -15,7 +15,7 @@ function canvasTex(w, h, draw) {
   return t;
 }
 
-export function buildNeon(scene, { width: W, height: H }) {
+export function buildNeon(scene, { width: W, height: H, deluxe }) {
   const group = new THREE.Group();
   scene.add(group);
   const r = rng(5);
@@ -90,9 +90,39 @@ export function buildNeon(scene, { width: W, height: H }) {
   const bokeh = new THREE.Points(bg, new THREE.PointsMaterial({ map: dot, size: 26, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.55 }));
   group.add(bokeh);
 
+  const extra = [];
+  if (deluxe) {
+    // striped synthwave sun on the horizon
+    const sun = new THREE.Mesh(new THREE.CircleGeometry(440, 64), new THREE.MeshBasicMaterial({
+      map: canvasTex(512, 512, (g, w, h) => {
+        const grad = g.createLinearGradient(0, 0, 0, h);
+        grad.addColorStop(0, '#fff3a0'); grad.addColorStop(0.5, '#ffb02e'); grad.addColorStop(1, '#ff4a3a');
+        g.fillStyle = grad; g.fillRect(0, 0, w, h);
+        g.globalCompositeOperation = 'destination-out';
+        for (let i = 0; i < 9; i++) { const y = h * 0.52 + i * 26; g.fillRect(0, y, w, 4 + i * 2.2); }
+      }), transparent: true, toneMapped: false, fog: false, depthWrite: false }));
+    sun.position.set(-1250, 40, -2600);
+    group.add(sun);
+    // light streaks racing along the grid
+    const streakMat = new THREE.MeshBasicMaterial({ color: 0x3ad0ff, toneMapped: false, transparent: true, opacity: 0.9 });
+    const streaks = [];
+    for (let i = 0; i < 14; i++) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(3, 1, 140), streakMat);
+      m.position.set((i - 7) * 150 + 75, -H / 2 - 118, -2000 + r() * 2000);
+      m.userData.speed = 6 + r() * 8;
+      group.add(m);
+      streaks.push(m);
+    }
+    extra.push(t => {
+      for (const m of streaks) { m.position.z += m.userData.speed; if (m.position.z > 400) m.position.z = -2400; }
+      sun.scale.setScalar(1 + Math.sin(t * 0.6) * 0.01);
+    });
+  }
+
   return {
     group,
     update(t) {
+      for (const f of extra) f(t);
       gridTex.offset.y = (t * 0.15) % 1;
       const p = bg.attributes.position;
       for (let i = 0; i < N; i++) p.array[i * 3 + 1] += Math.sin(t * 0.5 + seeds[i]) * 0.12;

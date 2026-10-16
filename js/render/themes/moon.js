@@ -80,7 +80,7 @@ function regolithTexture() {
   return t;
 }
 
-export function buildMoon(scene, { width: W, height: H, view }) {
+export function buildMoon(scene, { width: W, height: H, view, deluxe }) {
   const group = new THREE.Group();
   scene.add(group);
   const r = rng(11);
@@ -181,9 +181,36 @@ export function buildMoon(scene, { width: W, height: H, view }) {
   const beacons = [];
   group.traverse(o => { if (o.userData.blink !== undefined) beacons.push(o); });
 
+  const meteors = [];
+  if (deluxe) {
+    const mMat = new THREE.MeshBasicMaterial({ color: 0xe8f4ff, toneMapped: false, transparent: true, fog: false });
+    for (let i = 0; i < 4; i++) {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 2.2, 160, 6), mMat.clone());
+      m.rotation.z = Math.PI / 2 + 0.45;
+      m.userData.t0 = i * 3.1;
+      group.add(m);
+      meteors.push(m);
+    }
+    // a slow satellite crossing the sky with a blinking light
+    const sat = new THREE.Group();
+    sat.add(new THREE.Mesh(new THREE.BoxGeometry(8, 8, 8), new THREE.MeshStandardMaterial({ color: 0xc0c8d0, metalness: 0.8, roughness: 0.3 })));
+    for (const s2 of [-1, 1]) { const p = new THREE.Mesh(new THREE.BoxGeometry(22, 0.6, 10), new THREE.MeshStandardMaterial({ color: 0x1f4f9a, metalness: 0.5, roughness: 0.3 })); p.position.x = s2 * 16; sat.add(p); }
+    const blink = new THREE.Mesh(new THREE.SphereGeometry(1.6, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3a3a, toneMapped: false }));
+    blink.position.y = 6; sat.add(blink);
+    sat.position.set(-900, 560, -1100);
+    group.add(sat);
+    meteors.sat = sat; meteors.blink = blink;
+  }
+
   return {
     group,
     update(t, sceneInfo) {
+      for (const m of meteors) {
+        const k = ((t + m.userData.t0) % 13) / 1.4;
+        m.visible = k < 1;
+        if (k < 1) { m.position.set(700 - k * 900 + m.userData.t0 * 60, 700 - k * 420, -1500); m.material.opacity = 1 - k; }
+      }
+      if (meteors.sat) { meteors.sat.position.x = -1200 + ((t * 12) % 2400); meteors.sat.rotation.y = t * 0.3; meteors.blink.visible = Math.sin(t * 4) > 0.6; }
       const s = view.depthScale(BACK_Z);
       back.position.z = BACK_Z; back.scale.set(s, s, 1);
       const s2 = view.depthScale(BACK_Z + 1);

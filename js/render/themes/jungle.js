@@ -68,7 +68,7 @@ function dotTexture() {
   });
 }
 
-export function buildJungle(scene, { width: W, height: H, view }) {
+export function buildJungle(scene, { width: W, height: H, view, deluxe }) {
   const group = new THREE.Group();
   scene.add(group);
   const r = rng(99);
@@ -195,9 +195,33 @@ export function buildJungle(scene, { width: W, height: H, view }) {
   floor.receiveShadow = true;
   group.add(floor);
 
+  const birds = [];
+  if (deluxe) {
+    const bm = new THREE.MeshStandardMaterial({ color: 0x1c241a, roughness: 0.9, side: THREE.DoubleSide });
+    for (let i = 0; i < 14; i++) {
+      const b = new THREE.Group();
+      for (const s2 of [-1, 1]) {
+        const wing = new THREE.Mesh(new THREE.PlaneGeometry(14, 4), bm);
+        wing.position.x = s2 * 7;
+        wing.userData.side = s2;
+        const pivot = new THREE.Group(); pivot.add(wing); b.add(pivot);
+      }
+      b.position.set(-1400 + r() * 400, 250 + r() * 300, -700 - r() * 400);
+      b.userData = { speed: 1.5 + r(), phase: r() * 6, y0: b.position.y };
+      group.add(b);
+      birds.push(b);
+    }
+  }
+
   return {
     group,
     update(t, sceneInfo) {
+      for (const b of birds) {
+        b.position.x += b.userData.speed;
+        if (b.position.x > 1500) b.position.x = -1500;
+        b.position.y = b.userData.y0 + Math.sin(t * 0.8 + b.userData.phase) * 20;
+        b.children.forEach(p => { p.rotation.z = Math.sin(t * 9 + b.userData.phase) * 0.6 * p.children[0].userData.side; });
+      }
       const s = view.depthScale(BACK_Z);
       back.position.z = BACK_Z;
       back.scale.set(s, s, 1);

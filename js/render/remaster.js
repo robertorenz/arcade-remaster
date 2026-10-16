@@ -14,6 +14,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { inflate } from './inflate.js';
 import { voxelize } from './voxel.js';
 import { getProfile } from './profiles.js';
+import { RigLayer } from './rigs/rig-layer.js';
 
 const MAX_LIGHTS = 4;
 
@@ -399,6 +400,7 @@ export class RemasterView {
     this.composer.addPass(new OutputPass());
 
     this.camState = { x: 0, y: 0 };
+    this.style = 'remaster';
     this.time = 0;
     this.linCache = new Map();
     this.palKeyCache = new Map();
@@ -445,9 +447,17 @@ export class RemasterView {
   depthScale(z) { return (this.baseDist - z) / this.baseDist; }
 
   // ---- lifecycle -------------------------------------------------------------
+  // 'remaster' sculpts the original pixel art; 'redrawn' swaps in hand-built models and deluxe scenery
+  setStyle(style) {
+    if (style === this.style) return;
+    this.style = style;
+    if (this.machine) this.setMachine(this.machine);
+  }
+
   setMachine(machine) {
     if (this.tiles) { this.scene.remove(this.tiles.group); this.tiles.dispose(); }
     if (this.sprites) { this.scene.remove(this.sprites.group); this.sprites.dispose(); }
+    if (this.rigs) { this.scene.remove(this.rigs.group); this.rigs.dispose(); this.rigs = null; }
     if (this.backdrop) this.backdrop.dispose();
     this.machine = machine;
     this.linCache.clear();
@@ -455,10 +465,14 @@ export class RemasterView {
     this.paletteVersion = -1;
     this.profile = getProfile(machine.info.id, this);
     const { width, height } = machine.info;
-    this.backdrop = this.profile.backdrop(this.scene, { width, height, view: this });
+    this.backdrop = this.profile.backdrop(this.scene, { width, height, view: this, deluxe: this.style === 'redrawn' });
     this.tiles = new TileLayer(this);
     this.sprites = new SpriteLayer(this);
     this.scene.add(this.tiles.group, this.sprites.group);
+    if (this.style === 'redrawn' && this.profile.rigs) {
+      this.rigs = new RigLayer(this, this.profile.rigs(this));
+      this.scene.add(this.rigs.group);
+    }
     this.applyLighting(this.profile.lighting || {});
     const clip = this.profile.clip ? this.clipPlanes : null;
     for (const m of [...Object.values(this.materials), ...Object.values(this.profile.materials)]) {
@@ -584,7 +598,16 @@ export class RemasterView {
       g.position.z = z;
       g.scale.set(s, s, 1);
     }
+    let rigInfo = null;
+    if (this.rigs) {
+      rigInfo = this.rigs.update(sprites, scene, W, H, dt);
+      sprites = rigInfo.rest;
+    }
     const info = this.sprites.update(sprites, W, H);
+    if (rigInfo) {
+      info.lights = [...rigInfo.lights, ...info.lights];
+      info.player = rigInfo.player || info.player;
+    }
 
     // fire lights with flicker
     this.fireLights.forEach((l, i) => {
