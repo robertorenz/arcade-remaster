@@ -4,6 +4,8 @@ Arcade Remaster runs the **original arcade ROMs** on emulated CPUs, so the game 
 
 The program code is unchanged and only the graphics are reinterpreted, which means the game plays exactly like the arcade original.
 
+**Play online:** https://robertorenz.github.io/arcade-remaster/ — no ROMs are hosted; the first time you start a game you are asked for its MAME zip (e.g. `dkong.zip`), which stays in your browser and is never uploaded.
+
 ## Supported games
 
 | Game | ROM set | Hardware emulated | Status |
