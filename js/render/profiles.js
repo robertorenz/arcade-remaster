@@ -1,6 +1,7 @@
-// Per-game remaster profiles: how tiles become 3D, materials, and the backdrop theme.
+// Per-game remaster profiles: how tiles become 3D, materials, lighting and the backdrop theme.
 import * as THREE from 'three';
 import { buildConstruction } from './themes/construction.js';
+import { buildJungle } from './themes/jungle.js';
 
 function hudMaterial() {
   const m = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
@@ -18,6 +19,8 @@ function dkongProfile(view) {
   return {
     materials,
     backdrop: buildConstruction,
+    maskSprites: true,       // the game hides ladder tops with all-black sprites
+    skipBlackTiles: true,    // black tile pixels are background on this hardware
     inflate: { thickness: 0.8, minDepth: 5, maxDepth: 22 },
     spriteZ: kind => (kind === 'hud' ? 12 : 1),
     // steel pixels used to find beam slopes (ladder pixels excluded)
@@ -49,7 +52,35 @@ function dkongProfile(view) {
   };
 }
 
-const PROFILES = { dkong: dkongProfile };
+// Taito SJ (Jungle King): three playfields + sprites whose stacking order is chosen by the
+// game every frame. Each plane sits at its own depth; the topmost is nearest the viewer.
+function junglekProfile() {
+  const LAYER_GAP = 14;
+  const materials = {
+    foliage: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.78, metalness: 0.0, envMapIntensity: 0.35 }),
+  };
+  const zOf = pos => (pos - 3) * LAYER_GAP;
+  return {
+    materials,
+    backdrop: buildJungle,
+    clip: true,
+    margin: 0.56,
+    cameraTilt: 34,
+    inflate: { thickness: 0.75, minDepth: 4, maxDepth: 18 },
+    lighting: {
+      hemiSky: 0xe6f6ff, hemiGround: 0x4d3d1f, hemiIntensity: 1.25,
+      sunColor: 0xfff0cf, sunIntensity: 2.1, sunPos: [-200, 300, 260],
+      rimColor: 0x9fe6b0, rimIntensity: 0.45, exposure: 1.05, bloomStrength: 0.3, bloomThreshold: 0.96,
+    },
+    layerZ: (id, scene) => zOf(scene.order ? scene.order.indexOf(id) : 3),
+    spriteZ: (kind, order) => zOf(order ?? 3) + 1,
+    classifyTile(t, x, y, p, color) {
+      return [{ group: 'foliage', z0: -2, z1: 2, color }];
+    },
+  };
+}
+
+const PROFILES = { dkong: dkongProfile, junglek: junglekProfile };
 
 export function getProfile(id, view) {
   const make = PROFILES[id];

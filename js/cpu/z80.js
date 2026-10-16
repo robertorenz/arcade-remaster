@@ -41,7 +41,9 @@ export class Z80 {
   }
 
   nmi() { this.nmiPending = true; }
-  setIrq(state, vector = 0xff) { this.irqLine = state; this.irqVector = vector; }
+  setIrq(state, vector = 0xff) { this.irqLine = state; this.irqVector = vector; this.irqHold = false; }
+  // assert an interrupt that stays pending until the CPU acknowledges it
+  holdIrq(vector = 0xff) { this.irqLine = true; this.irqVector = vector; this.irqHold = true; }
 
   // ---- helpers -------------------------------------------------------------
   rd(a) { return this.bus.read(a & 0xffff); }
@@ -203,6 +205,7 @@ export class Z80 {
     if (this.irqLine && this.iff1 && !this.eiDelay) {
       this.halted = false;
       this.iff1 = this.iff2 = 0;
+      if (this.irqHold) this.irqLine = false;   // HOLD_LINE semantics: released on acknowledge
       this.r = (this.r & 0x80) | ((this.r + 1) & 0x7f);
       this.push(this.pc);
       if (this.im === 2) { this.pc = this.rd16((this.i << 8) | (this.irqVector & 0xfe)); return 19; }
