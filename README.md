@@ -41,11 +41,13 @@ On Windows you can double-click `start.bat`. The app has no dependencies or buil
 |---|---|
 | Arrows / WASD | Move, climb |
 | Space / Z | Jump (Moon Patrol: jump) |
-| X / Alt | Second button (Moon Patrol: fire) |
+| X / K | Second button (Moon Patrol: fire) |
 | 5 or C | Insert coin |
 | 1 / 2 | Start 1P / 2P |
 | V | Cycle Remastered / Redrawn / Classic / Split view |
-| P / M / F / H | Pause / mute / fullscreen / help |
+| P / M / F / H | Pause / mute / fullscreen / controls |
+
+All game keys can be changed: open **Controls** (H or the ? button), click a key slot and press the new key (two keys per action; Backspace clears a slot, Reset restores the defaults). Bindings are saved in the browser.
 
 Gamepads are supported: D-pad or stick to move, A to jump, Select for coin, Start to start.
 

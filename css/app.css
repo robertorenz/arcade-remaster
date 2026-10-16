@@ -184,6 +184,17 @@ button { font: inherit; color: inherit; }
 .modal .close { width: 30px; height: 30px; }
 .modal.error h2 { color: var(--danger); }
 
+.bind-grid { display: grid; grid-template-columns: 1fr 108px 108px; gap: 6px 8px; align-items: center; margin: 4px 0 14px; }
+.bind-name { color: var(--text); font-weight: 500; }
+.bind-key {
+  height: 32px; padding: 0 8px; border-radius: 8px; cursor: pointer;
+  background: var(--bg); border: 1px solid var(--border); border-bottom-width: 2px;
+  font: 500 12px "JetBrains Mono", monospace; color: var(--text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bind-key:hover { border-color: var(--accent); }
+.bind-key.listening { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.hint-text { color: var(--muted); }
 .keys { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; align-items: center; margin: 4px 0 12px; }
 kbd {
   display: inline-block; min-width: 26px; text-align: center;

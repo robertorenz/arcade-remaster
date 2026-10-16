@@ -1,6 +1,6 @@
 import { readZip } from './zip.js';
 import { MACHINES, findMachine } from './machines/index.js';
-import { Input } from './input.js';
+import { Input, ACTIONS, keyLabel } from './input.js';
 import { AudioOut } from './audio/output.js';
 import { ClassicView } from './render/classic.js';
 import { openModal, modalOpen, showError } from './ui/modal.js';
@@ -230,20 +230,64 @@ function loop(now) {
 }
 
 // ---- dialogs --------------------------------------------------------------------
+// Controls: every action has two remappable key slots. Click a slot, then press a key
+// (Esc cancels, Backspace/Delete clears the slot).
 function showHelp() {
+  const names = machine?.info.buttons || [];
+  const label = {
+    left: 'Left', right: 'Right', up: 'Up / climb', down: 'Down',
+    b1: `Button 1${names[0] ? ` — ${names[0]}` : ''}`,
+    b2: `Button 2${names[1] ? ` — ${names[1]}` : ''}`,
+    coin: 'Insert coin', start1: 'Start 1 player', start2: 'Start 2 players',
+  };
+  const body = document.createElement('div');
+  const render = () => {
+    body.innerHTML = `
+      <p class="hint-text">Click a key to change it, then press the new key. <kbd>Esc</kbd> cancels, <kbd>Backspace</kbd> clears.</p>
+      <div class="bind-grid">${ACTIONS.map(a => `
+        <span class="bind-name">${label[a]}</span>
+        ${[0, 1].map(slot => `<button class="bind-key" data-action="${a}" data-slot="${slot}">${keyLabel(input.bindings[a][slot])}</button>`).join('')}`).join('')}
+      </div>
+      <div class="keys">
+        <span><kbd>V</kbd></span><span>Cycle Remastered / Redrawn / Classic / Split view</span>
+        <span><kbd>P</kbd> <kbd>M</kbd> <kbd>F</kbd> <kbd>H</kbd></span><span>Pause, mute, fullscreen, this panel (unless bound to a game control)</span>
+      </div>
+      <p>Gamepads work too: D-pad or stick to move, A/X for button 1, B/Y for button 2, Select for coin, Start to start.</p>`;
+  };
+  render();
+  let capture = null;
+  const stopCapture = () => {
+    if (!capture) return;
+    removeEventListener('keydown', capture.onKey, true);
+    capture.btn.classList.remove('listening');
+    capture = null;
+  };
+  body.addEventListener('click', e => {
+    const btn = e.target.closest('.bind-key');
+    if (!btn) return;
+    stopCapture();
+    btn.classList.add('listening');
+    btn.textContent = 'Press a key…';
+    const onKey = ev => {
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      const { action, slot } = btn.dataset;
+      if (ev.code === 'Escape') { /* keep the old key */ }
+      else if (ev.code === 'Backspace' || ev.code === 'Delete') input.bind(action, +slot, null);
+      else input.bind(action, +slot, ev.code);
+      stopCapture();
+      render();
+    };
+    capture = { btn, onKey };
+    addEventListener('keydown', onKey, true);
+  });
   openModal({
     title: 'Controls',
-    body: `
-      <div class="keys">
-        <span><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></span><span>Move / climb (WASD also works)</span>
-        <span><kbd>Space</kbd> <kbd>Z</kbd></span><span>Jump / action</span>
-        <span><kbd>X</kbd></span><span>Second button (games that use it)</span>
-        <span><kbd>5</kbd> <kbd>C</kbd></span><span>Insert coin</span>
-        <span><kbd>1</kbd> <kbd>2</kbd></span><span>Start 1 or 2 players</span>
-        <span><kbd>V</kbd></span><span>Cycle Remastered / Classic / Split view</span>
-        <span><kbd>P</kbd> <kbd>M</kbd> <kbd>F</kbd></span><span>Pause, mute, fullscreen</span>
-      </div>
-      <p>Gamepads work too: D-pad or stick to move, A to jump, Select for coin, Start to start.</p>`,
+    body,
+    buttons: [{ label: 'Reset to defaults', value: 'reset' }, { label: 'Done', primary: true }],
+  }).then(v => {
+    stopCapture();
+    if (v === 'reset') { input.resetBindings(); showHelp(); }
   });
 }
 
@@ -326,7 +370,7 @@ function init() {
     if (document.fullscreenElement) document.exitFullscreen(); else stage.requestFullscreen?.();
   });
   addEventListener('keydown', e => {
-    if (modalOpen() || e.repeat) return;
+    if (modalOpen() || e.repeat || input.isBound(e.code)) return;
     switch (e.code) {
       case 'KeyP': setPaused(!paused); break;
       case 'KeyM': setMuted(!prefs.muted); break;
