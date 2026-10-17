@@ -282,7 +282,9 @@ export function joustRigSet(view) {
           const r = k.red || 0, b = k.cyan || 0, gr = k.grey || 0;
           rider = r >= 4 && r >= b ? 'red' : b >= 4 && b >= gr ? 'blue' : 'grey';
         } else if ((k.yellow || 0) >= 3 && (k.blue || 0) + (k.cyan || 0) >= 8 && n >= 50) { type = 'rider'; rider = 'player'; }
-        else if (w >= 22 && n >= 60) type = 'ptero';
+        // the player materialising: a solid yellow silhouette of the knight and ostrich
+        else if ((k.yellow || 0) >= n * 0.8 && n >= 40 && h >= 12) { type = 'rider'; rider = 'player'; }
+        else if (w >= 22 && h >= 6 && n >= 60) type = 'ptero';   // (the 3 px spawn pads on ledges are not)
         else if (n >= 10 && n <= 45 && w <= 10 && h <= 11 && (k.white || 0) + (k.grey || 0) + (k.green || 0) >= n * 0.5) type = 'egg';
         if (!type) continue;
         for (const j of c.px) claimed.add(j);

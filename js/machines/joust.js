@@ -48,7 +48,8 @@ export class Joust {
     this.sndRom.set(get(names[12]), 0xf000);
 
     this.vram = new Uint8Array(0xc000);
-    this.stamp = new Uint32Array(0xc000);     // frame number of the last blitter draw per byte
+    // per pixel (two per byte, high nibble first): 1 while it holds part of a moving object
+    this.objPix = new Uint8Array(0x18000);
     this.paletteRam = new Uint8Array(16);
     this.cmos = new Uint8Array(0x400).fill(0xf0);
     this.romView = false;
@@ -132,7 +133,11 @@ export class Joust {
   }
 
   write(a, v) {
-    if (a < 0xc000) { this.vram[a] = v; return; }
+    if (a < 0xc000) {
+      this.vram[a] = v;
+      this.objPix[a * 2] = this.objPix[a * 2 + 1] = 0;
+      return;
+    }
     if (a < 0xc400) {
       const i = a & 0x0f;
       if (this.paletteRam[i] !== v) {
@@ -179,8 +184,12 @@ export class Joust {
     const dst256 = ctrl & 0x02, src256 = ctrl & 0x01;
     const sxadv = src256 ? 0x100 : 1, syadv = src256 ? 1 : w;
     const dxadv = dst256 ? 0x100 : 1, dyadv = dst256 ? 1 : w;
-    // a draw from ROM that isn't a solid fill marks the pixels as moving objects
-    const isDraw = !solid && b.src < 0x9000;
+    // a draw of a small ROM image (riders, birds, eggs, pterodactyls are at most 15 bytes wide)
+    // marks pixels as a moving object until something else overwrites them. Ledges are wider
+    // and are redrawn throughout play to repair them, so they never count. A rider respawning is
+    // a solid-colour silhouette through a character image (0x1000-0x3fff; text lives higher up).
+    const small = w < 16 && b.src < 0x9000;
+    const isDraw = small && (!solid || (fgOnly && b.src >= 0x1000 && b.src < 0x4000));
     let sstart = b.src, dstart = b.dst, pix = 0;
     for (let y = 0; y < h; y++) {
       let s = sstart, d = dstart;
@@ -194,8 +203,13 @@ export class Joust {
         if (fgOnly && !(data & 0x0f)) { if (noOdd) keep &= 0xf0; } else if (!noOdd) keep &= 0xf0;
         cur &= keep;
         cur |= (solid ? b.solid : data) & ~keep;
-        this.write(d, cur & 0xff);
-        if (d < 0xc000 && (~keep & 0xff)) this.stamp[d] = isDraw && (data & ~keep & 0xff) ? this.frame + 1 : 0;
+        if (d < 0xc000) this.vram[d] = cur & 0xff; else this.write(d, cur & 0xff);
+        if (d < 0xc000) {
+          // each nibble the blit wrote is now either part of an object or not
+          const put = solid ? b.solid : data;
+          if (!(keep & 0xf0)) this.objPix[d * 2] = isDraw && (put & 0xf0) ? 1 : 0;
+          if (!(keep & 0x0f)) this.objPix[d * 2 + 1] = isDraw && (put & 0x0f) ? 1 : 0;
+        }
         s = (s + sxadv) & 0xffff;
         d = (d + dxadv) & 0xffff;
       }
@@ -290,7 +304,7 @@ export class Joust {
 
   // ---- video -------------------------------------------------------------------------------
   snapshot() {
-    this.shot = { vram: this.vram.slice(), frame: this.frame };
+    this.shot = { vram: this.vram.slice(), objPix: this.objPix.slice(), frame: this.frame };
   }
 
   pixelAt(vram, x, y) {
@@ -312,17 +326,14 @@ export class Joust {
     }
   }
 
-  // Bitmap hardware has no tiles or sprites, so the scene is reconstructed: pixels drawn by the
-  // blitter during the last couple of frames are moving objects; everything else is scenery,
+  // Bitmap hardware has no tiles or sprites, so the scene is reconstructed: pixels the blitter
+  // drew from small object images are moving objects; everything else is scenery,
   // cut into 8x8 tiles keyed by content.
   displayScene() {
     const sh = this.shot;
     if (!sh) return { tiles: [], sprites: [] };
-    const vram = sh.vram, frame = sh.frame;
-    const live = (x, y) => {
-      const st = this.stamp[(x >> 1) * 256 + y];
-      return st && frame + 1 - st <= 2;
-    };
+    const { vram, objPix } = sh;
+    const live = (x, y) => objPix[((x >> 1) * 256 + y) * 2 + (x & 1)];
     const tiles = [];
     const spr = new Uint8Array(W * H);
     let anySprite = false;

@@ -77,7 +77,7 @@ ROM program (Z80) ─► video RAM + sprite RAM every frame
 
 The sprite figurines are cached by content hash, so each animation frame is sculpted only once.
 
-Joust has no sprite hardware (everything is drawn into a bitmap by the blitter), so the scene is reconstructed: pixels the blitter drew during the last couple of frames are treated as moving objects, the rest is scenery cut into content-keyed tiles.
+Joust has no sprite hardware (everything is drawn into a bitmap by the blitter), so the scene is reconstructed: every pixel remembers whether the blitter last wrote it from a small object image (riders, birds, eggs, pterodactyls, the respawn silhouette). Those pixels stay a moving object until they are erased, however long the object stands still. Everything else, including the ledges the game keeps redrawing, is scenery cut into content-keyed tiles.
 
 ## Project layout
 
