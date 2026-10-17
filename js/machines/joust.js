@@ -48,8 +48,14 @@ export class Joust {
     this.sndRom.set(get(names[12]), 0xf000);
 
     this.vram = new Uint8Array(0xc000);
-    // per pixel (two per byte, high nibble first): 1 while it holds part of a moving object
-    this.objPix = new Uint8Array(0x18000);
+    // per pixel (two per byte, high nibble first): the object it belongs to while it holds part of
+    // a moving object, 0 otherwise. A rider is drawn as two blits, knight then mount, which share
+    // one object number, so riders that touch or overlap on screen are still told apart.
+    this.objPix = new Uint32Array(0x18000);
+    this.objSeq = 0;
+    this.scanVram = new Uint8Array(0xc000);
+    this.scanObj = new Uint32Array(0x18000);
+    this.lastDraw = null;
     this.paletteRam = new Uint8Array(16);
     this.cmos = new Uint8Array(0x400).fill(0xf0);
     this.romView = false;
@@ -190,6 +196,17 @@ export class Joust {
     // a solid-colour silhouette through a character image (0x1000-0x3fff; text lives higher up).
     const small = w < 16 && b.src < 0x9000;
     const isDraw = small && (!solid || (fgOnly && b.src >= 0x1000 && b.src < 0x4000));
+    let obj = 0;
+    if (isDraw) {
+      const x0 = (b.dst >> 8) * 2, y0 = b.dst & 0xff, x1 = x0 + w * 2, y1 = y0 + h;
+      const last = this.lastDraw;
+      // the mount follows its knight (a 7-byte-wide image) straight away, overlapping it
+      if (last && last.frame === this.frame && last.knight && !last.paired &&
+          x0 < last.x1 + 4 && x1 > last.x0 - 4 && y0 < last.y1 + 4 && y1 > last.y0 - 4) {
+        obj = last.obj; last.paired = true;
+      } else obj = this.objSeq = (this.objSeq % 0xfffffff) + 1;
+      this.lastDraw = { obj, frame: this.frame, x0, y0, x1, y1, knight: w === 7 && h <= 7, paired: false };
+    }
     let sstart = b.src, dstart = b.dst, pix = 0;
     for (let y = 0; y < h; y++) {
       let s = sstart, d = dstart;
@@ -207,8 +224,8 @@ export class Joust {
         if (d < 0xc000) {
           // each nibble the blit wrote is now either part of an object or not
           const put = solid ? b.solid : data;
-          if (!(keep & 0xf0)) this.objPix[d * 2] = isDraw && (put & 0xf0) ? 1 : 0;
-          if (!(keep & 0x0f)) this.objPix[d * 2 + 1] = isDraw && (put & 0x0f) ? 1 : 0;
+          if (!(keep & 0xf0)) this.objPix[d * 2] = isDraw && (put & 0xf0) ? obj : 0;
+          if (!(keep & 0x0f)) this.objPix[d * 2 + 1] = isDraw && (put & 0x0f) ? obj : 0;
         }
         s = (s + sxadv) & 0xffff;
         d = (d + dxadv) & 0xffff;
@@ -254,6 +271,7 @@ export class Joust {
       if ((line & 31) === 0 && line !== 256) this.pia1.cb1W((line >> 5) & 1);
       if (line === 0) this.pia1.ca1W(0);
       if (line === 240) this.pia1.ca1W(1);
+      if (line < 256) this.scanOut(line);
       if (line === VIS_Y0 + H) this.snapshot();
       this.mainAcc += MAIN_PER_LINE;
       while (this.mainAcc > 0) this.mainAcc -= this.cpu.step();
@@ -303,8 +321,16 @@ export class Joust {
   }
 
   // ---- video -------------------------------------------------------------------------------
+  // The monitor shows each row of the bitmap as the beam reaches it, and the game erases and redraws
+  // objects just behind the beam, so the picture is latched line by line (one snapshot of the whole
+  // bitmap would catch objects half way between being erased and redrawn).
+  scanOut(y) {
+    const v = this.vram, o = this.objPix, sv = this.scanVram, so = this.scanObj;
+    for (let i = y; i < 0xc000; i += 256) { sv[i] = v[i]; so[i * 2] = o[i * 2]; so[i * 2 + 1] = o[i * 2 + 1]; }
+  }
+
   snapshot() {
-    this.shot = { vram: this.vram.slice(), objPix: this.objPix.slice(), frame: this.frame };
+    this.shot = { vram: this.scanVram.slice(), objPix: this.scanObj.slice(), frame: this.frame };
   }
 
   pixelAt(vram, x, y) {
@@ -336,6 +362,7 @@ export class Joust {
     const live = (x, y) => objPix[((x >> 1) * 256 + y) * 2 + (x & 1)];
     const tiles = [];
     const spr = new Uint8Array(W * H);
+    const groups = new Uint32Array(W * H);
     let anySprite = false;
     for (let ty = 0; ty < H; ty += 8) {
       for (let tx = 0; tx < W; tx += 8) {
@@ -346,7 +373,8 @@ export class Joust {
             const sx = tx + x + VIS_X0, sy = ty + y + VIS_Y0;
             const p = this.pixelAt(vram, sx, sy);
             if (!p) continue;
-            if (live(sx, sy)) { spr[(ty + y) * W + tx + x] = p; anySprite = true; continue; }
+            const g = live(sx, sy);
+            if (g) { spr[(ty + y) * W + tx + x] = p; groups[(ty + y) * W + tx + x] = g; anySprite = true; continue; }
             if (!px) px = new Uint8Array(64);
             px[y * 8 + x] = p;
             hash = Math.imul(hash ^ (y * 8 + x) ^ (p << 8), 16777619);
@@ -355,7 +383,7 @@ export class Joust {
         if (px) tiles.push({ x: tx, y: ty, w: 8, h: 8, code: hash >>> 0, key: `j${hash >>> 0}`, pal: 0, pixels: px, kind: ty >= 224 ? 'lava' : 'rock' });
       }
     }
-    const sprites = anySprite ? [{ x: 0, y: 0, w: W, h: H, code: 0, pal: 0, pixels: spr, kind: 'other' }] : [];
+    const sprites = anySprite ? [{ x: 0, y: 0, w: W, h: H, code: 0, pal: 0, pixels: spr, groups, kind: 'other' }] : [];
     return { tiles, sprites };
   }
 }
