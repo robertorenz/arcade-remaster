@@ -111,6 +111,13 @@ js/render/structures/        Redrawn mode: rebuilt playfields (girders, maze wal
 serve.mjs, start.bat         local static server
 ```
 
+## Updates
+
+The status bar shows the build running in the tab. On startup the page compares it with `version.json`
+(always fetched fresh). If a newer build has been deployed, it re-downloads its scripts past the browser
+cache and reloads once, so a tab never keeps running a stale mix of old and new modules.
+When deploying, bump `BUILD` in `js/main.js` and `version.json` together.
+
 ## Legal
 
 This project contains no ROM data. Donkey Kong, Jungle King, Moon Patrol, Ms. Pac-Man, Joust and Q*bert are trademarks of their respective owners. Only use ROM images you are legally entitled to.

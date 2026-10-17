@@ -392,5 +392,26 @@ function init() {
 
 init();
 
+// ---- updates ------------------------------------------------------------------------
+// GitHub Pages lets browsers cache each script for 10 minutes, and modules loaded from cache are
+// not re-fetched by a normal reload, so a tab can run a mix of old and new code after a deploy.
+// version.json is always fetched fresh; if it names a newer build than this code, every script
+// this page loaded is re-downloaded past the cache and the page reloads once.
+const BUILD = '2026-10-17.2';
+$('statusBuild').textContent = `build ${BUILD}`;
+(async () => {
+  try {
+    const r = await fetch('version.json', { cache: 'no-store' });
+    if (!r.ok) return;
+    const { build } = await r.json();
+    if (!build || build === BUILD || sessionStorage.getItem('arcade-remaster-refreshed') === build) return;
+    sessionStorage.setItem('arcade-remaster-refreshed', build);
+    const urls = performance.getEntriesByType('resource').map(e => e.name)
+      .filter(u => u.startsWith(location.origin) && /\.(js|css)(\?|$)/.test(u));
+    await Promise.all(urls.map(u => fetch(u, { cache: 'reload' }).catch(() => {})));
+    location.reload();
+  } catch { /* offline or no version file: keep running */ }
+})();
+
 // debugging handle for the console
 window.arcade = { get machine() { return machine; }, get remaster() { return remaster; }, input, audio };
